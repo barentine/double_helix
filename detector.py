@@ -21,7 +21,7 @@ def h2d(x, y):
 
 
 class Detector(object):
-    def __init__(self, image_size, roi_half_size):
+    def __init__(self, image_size, roi_half_size, mag=1.0):
         """
         Parameters:
         -----------
@@ -31,6 +31,9 @@ class Detector(object):
             ROI size used in max filtering and 
             filter kernel generation will be
             2 * roi_half_size + 1
+        mag: float
+            scale to resize convolution kernel pixels relative to input image
+            pixels.
         
         Notes:
         ------
@@ -39,9 +42,12 @@ class Detector(object):
         """
         xx = np.mgrid[(-roi_half_size):(roi_half_size + 1)]
         yy = np.mgrid[(-roi_half_size):(roi_half_size + 1)]
-        X, Y = xx[:, None], yy[None, :]
+        X, Y = mag * xx[:, None], mag * yy[None, :]
         self.X = X
         self.Y = Y
+
+        self.roi_half_size = roi_half_size
+        self.roi_size = 2 * roi_half_size + 1
 
         self.g2a = g2a(X, Y)
         self.g2b = g2b(X, Y)
@@ -93,9 +99,10 @@ class Detector(object):
             orientation [radians] of candidate emitters. 0 points along row in
             increasing col.
         """
-        # FIXME - currently hardcoded max filter kernel size. Want to change that
-        max_filtered_strength = ndimage.maximum_filter(strength_image, (10, 10))
-
+        max_filtered_strength = ndimage.maximum_filter(strength_image, 
+                                                        (self.roi_size,
+                                                         self.roi_size))
+        
         candidate_image = np.logical_and(max_filtered_strength == strength_image, strength_image >= threshold)
 
         row, col = np.where(candidate_image)
