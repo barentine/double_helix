@@ -1,0 +1,15 @@
+visgui:
+    - double_helix.vis_modules.DH_mappings
+    
+# a list of fully qualified import paths for dh5view plugins
+# dsviewer:
+#     - somepackage.somemodule
+    
+# a list of fully qualified import paths for recipe modules
+recipes:
+    - double_helix.recipes.DH_mappings
+
+# a list of fully qualified import paths for fitfactories
+fitfactories:
+    - double_helix.FitFactories.DoubleHelixFit_Theta
+    - double_helix.FitFactories.DoubleHelixFit_SepGuess
