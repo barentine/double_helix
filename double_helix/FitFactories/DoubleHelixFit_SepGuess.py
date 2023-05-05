@@ -23,8 +23,8 @@
 
 import numpy as np
 from scipy import ndimage
-from .fitCommon import fmtSlicesUsed, pack_results
-from . import FFBase 
+from PYME.localization.FitFactories.fitCommon import fmtSlicesUsed, pack_results
+from PYME.localization.FitFactories import FFBase 
 from PYME.Analysis._fithelpers import FitModelWeighted, FitModelWeightedJac
 
 ##################

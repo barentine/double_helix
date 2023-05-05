@@ -10,6 +10,6 @@ recipes:
     - double_helix.recipes.DH_mappings
 
 # a list of fully qualified import paths for fitfactories
-fitfactories:
+fit_factories:
     - double_helix.FitFactories.DoubleHelixFit_Theta
     - double_helix.FitFactories.DoubleHelixFit_SepGuess

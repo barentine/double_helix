@@ -23,8 +23,8 @@
 
 import numpy as np
 from scipy import ndimage
-from .fitCommon import fmtSlicesUsed, pack_results
-from . import FFBase 
+from PYME.localization.FitFactories.fitCommon import fmtSlicesUsed, pack_results
+from PYME.localization.FitFactories import FFBase 
 from PYME.Analysis._fithelpers import FitModelWeighted, FitModelWeightedJac
 
 ##################
@@ -293,7 +293,7 @@ class Detector(object):
 		
 
 class DumbellFitFactory(FFBase.FitFactory):
-    def __init__(self, data, metadata, fitfcn=f_dumbell, background=None, noiseSigma=None, **kwargs):
+    def __init__(self, data, metadata, fitfcn=f_dh, background=None, noiseSigma=None, **kwargs):
         """Create a fit factory which will operate on image data (data), potentially using voxel sizes etc contained in
         metadata. """
         FFBase.FitFactory.__init__(self, data, metadata, fitfcn, background, noiseSigma)
