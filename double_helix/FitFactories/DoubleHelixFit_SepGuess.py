@@ -427,7 +427,7 @@ class DumbellFitFactory(FFBase.FitFactory):
             plt.colorbar()
 
         #package results
-        return FitResultR(res, self.metadata, (xslice, yslice, zslice), resCode, fitErrors, bgm, length)
+        return FitResultR(res, self.metadata, (xslice, yslice, zslice), resCode, fitErrors, bgm)#, length)
 
     @classmethod
     def evalModel(cls, params, md, x=0, y=0, roiHalfSize=5):

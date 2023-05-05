@@ -494,7 +494,7 @@ class DumbellFitFactory(FFBase.FitFactory):
         X = vs.x*np.mgrid[(x - roiHalfSize):(x + roiHalfSize + 1)]
         Y = vs.y*np.mgrid[(x - roiHalfSize):(x + roiHalfSize + 1)]
 
-        return (f_dumbell(params, X, Y), X[0], Y[0], 0)
+        return (f_dh(params, X, Y), X[0], Y[0], 0)
 
 
 #so that fit tasks know which class to use
