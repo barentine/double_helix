@@ -45,6 +45,37 @@ def f_dumbell(p, X, Y, bgd=None):
     #print r.shape    
     return r
 
+def f_dh(p, X, Y, bgd=None):
+    # amplitude0, amplitude1, x, y, theta, lobe_separation, sigma, constant_background_offset
+    A0, A1, x, y, theta, lobe_sep, sig, bg = p
+    # FIXME
+
+def f_dh_jac(p, X, Y):
+    """first row of jacobian (partial first derivatives of f_dh for each var in p)
+
+    Parameters
+    ----------
+    p : list
+        parameter vector:
+            amplitude0: amplitude of one of the Gaussians [ADU]
+            amplitude1: amplitude of the second Gaussian [ADU]
+            x: x center position [nm]
+            y: y center position [nm]
+            theta: angle created by two lobes [radians]
+            lobe_separation: distance between centers of the two gaussians [nm]
+            sigma: Gaussian sigma, shared parameter of both Gaussians [nm]
+            constant_background_offset: constant background term added to model function [ADU]
+    X : np.ndarray
+        x grid positions (1D, will broadcast to 2D)
+    Y : np.ndarray
+        y grid positions (1D, will broadcast to 2D)
+    """
+    # amplitude0, amplitude1, x, y, theta, lobe_separation, sigma, constant_background_offset
+    A0, A1, x, y, theta, lobe_sep, sig, bg = p
+    # FIXME
+
+f_dh.D = f_dh_jac
+
 #####################
 
 #define the data type we're going to return
