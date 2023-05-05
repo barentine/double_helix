@@ -73,7 +73,7 @@ def f_dh(p, X, Y, bgd=None):
         f += bgd   
     return f
 
-def f_dh_jac(p, X, Y):
+def f_dh_jac(p, X, Y, bgd=None):
     """first row of jacobian (partial first derivatives of f_dh for each var in p)
 
     Parameters
@@ -92,11 +92,17 @@ def f_dh_jac(p, X, Y):
         x grid positions (1D, will broadcast to 2D)
     Y : np.ndarray
         y grid positions (1D, will broadcast to 2D)
+    bgd : np.ndarray
+        per-pixel background estimate, if determined separately. 
+        Not used here at the moment, which effectively says we
+        assume it is 'flat enough' not to matter here. But passing
+        it to be compatible with PYME _fithelpers weightedjac function
     
     Returns
     -------
     ndarray
-        the Jacobian of f_dh across the rows.
+        the Jacobian of f_dh across the rows, unraveled and stack for compatibility with 
+        PYME.Analysis._fithelpers.weightedJacF
     """
     # amplitude0, amplitude1, x, y, theta, lobe_separation, sigma, constant_background_offset
     A0, A1, x, y, theta, lobe_sep, sig, bg = p
@@ -117,7 +123,7 @@ def f_dh_jac(p, X, Y):
     jy = sigpre * (A0 * sqrt_arg0y_num * ja0 + A1 * sqrt_arg1y_num * ja1)
     
     jtheta = A0 * ja0 * sigpre * 0.5 * lobe_sep * (np.sin(theta) * sqrt_arg0x_num - np.cos(theta) * sqrt_arg0y_num)
-    jtheta += A1 * ja1 * sigpre * 0.5 * lobe_sep * (np.cose(theta) * sqrt_arg1y_num - np.sin(theta) * sqrt_arg1x_num)
+    jtheta += A1 * ja1 * sigpre * 0.5 * lobe_sep * (np.cos(theta) * sqrt_arg1y_num - np.sin(theta) * sqrt_arg1x_num)
 
     jlobe_sep = -A0 * ja0 * sigpre * 0.5 * (np.sin(theta) * sqrt_arg0y_num + np.cos(theta) * sqrt_arg0x_num)
     jlobe_sep += A1 * ja1 * sigpre * 0.5 * (np.cos(theta) * sqrt_arg1x_num + np.sin(theta) * sqrt_arg1y_num)
@@ -125,8 +131,9 @@ def f_dh_jac(p, X, Y):
     jsig = A0 * ja0 * (1/(sig ** 3)) * (sqrt_arg0x_num ** 2 + sqrt_arg0y_num ** 2)
     jsig += A1 * ja1 * (1/(sig ** 3)) * (sqrt_arg1x_num ** 2 + sqrt_arg1y_num ** 2)
 
-    jbg = 1
-    return [ja0, ja1, jx, jy, jtheta, jlobe_sep, jsig, jbg]
+    jbg = np.ones_like(ja0)
+    # return [ja0.ravel(), ja1.ravel(), jx.ravel(), jy.ravel(), jtheta.ravel(), jlobe_sep.ravel(), jsig.ravel(), jbg.ravel()]
+    return np.stack([ja0.ravel(), ja1.ravel(), jx.ravel(), jy.ravel(), jtheta.ravel(), jlobe_sep.ravel(), jsig.ravel(), jbg.ravel()], axis=1)
 
 # store the derivative function as an attribute so we can toggle below
 # (not super important)
@@ -137,13 +144,13 @@ f_dh.D = f_dh_jac
 #define the data type we're going to return
 fresultdtype=[('tIndex', '<i4'),
               ('fitResults', [('A0', '<f4'), ('A1', '<f4'),
-                              ('x', '<f4'),('y', '<f4'),
+                              ('x0', '<f4'),('y0', '<f4'),
                               ('theta', '<f4'),
                               ('lobe_separation', '<f4'),
                               ('sigma', '<f4'), 
                               ('background', '<f4')]),
               ('fitError', [('A0', '<f4'), ('A1', '<f4'),
-                              ('x', '<f4'),('y', '<f4'),
+                              ('x0', '<f4'),('y0', '<f4'),
                               ('theta', '<f4'),
                               ('lobe_separation', '<f4'),
                               ('sigma', '<f4'), 
@@ -383,7 +390,7 @@ class DumbellFitFactory(FFBase.FitFactory):
             # y0 =  vs.y*y
             
             bgm = np.mean(background)
-            guess = (amp, amp, x_nm, y_nm, orientation, lobe_sep, sigma_guess, dataMean.min())
+            guess = (amp, amp, x_nm[ind], y_nm[ind], orientation[ind], lobe_sep, sigma_guess, dataMean.min())
             # guess = (amp, x0_nm[ind], y0_nm[ind], amp, x1_nm[ind], y1_nm[ind], 160, dataMean.min())
             
             #do the fit
@@ -415,15 +422,15 @@ class DumbellFitFactory(FFBase.FitFactory):
                 plt.colorbar()
                 plt.subplot(153)
                 plt.title('Init. Guess')
-                plt.imshow(f_dumbell(guess, X, Y))
+                plt.imshow(f_dh(guess, X, Y))
                 plt.colorbar()
                 plt.subplot(154)
                 plt.title('Fitted Results')
-                plt.imshow(f_dumbell(res, X, Y))
+                plt.imshow(f_dh(res, X, Y))
                 plt.colorbar()
                 plt.subplot(155)
                 plt.title('Residuals')
-                plt.imshow(dataMean-f_dumbell(res, X, Y))
+                plt.imshow(dataMean-f_dh(res, X, Y))
                 plt.colorbar()
 
             #package results
