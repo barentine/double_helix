@@ -159,7 +159,13 @@ fresultdtype=[('tIndex', '<i4'),
               ('slicesUsed', [('x', [('start', '<i4'),('stop', '<i4'),('step', '<i4')]),
                               ('y', [('start', '<i4'),('stop', '<i4'),('step', '<i4')]),
                               ('z', [('start', '<i4'),('stop', '<i4'),('step', '<i4')])]),
-              ('subtractedBackground', '<f4')
+              ('subtractedBackground', '<f4'),
+              ('startParams', [('A0', '<f4'), ('A1', '<f4'),
+                              ('x0', '<f4'),('y0', '<f4'),
+                              ('theta', '<f4'),
+                              ('lobesep', '<f4'),
+                              ('sigma', '<f4'), 
+                              ('background', '<f4')]),
               ]
 
 def FitResultR(fitResults, metadata, slicesUsed=None, resultCode=-1, fitErr=None, background=0, length = 0):
@@ -440,56 +446,110 @@ class DumbellFitFactory(FFBase.FitFactory):
         
         return results
 
-    # def FromPoint(self, x, y, z=None, roiHalfSize=7, axialHalfSize=15):
-    #     X, Y, data, background, sigma, xslice, yslice, zslice = self.getROIAtPoint(x, y, z, roiHalfSize, axialHalfSize)
+    def FromPoint(self, x, y, z=None, roiHalfSize=7, axialHalfSize=0):
+        roiHalfSize = self.metadata.getOrDefault('Analysis.ROISize', roiHalfSize)
+        X, Y, data, background, sigma, xslice, yslice, zslice = self.getROIAtPoint(x, y, z, roiHalfSize, axialHalfSize)
 
-    #     dataMean = data - background
+        dataMean = data - background
         
-    #     #print data.shape
-
-    #     #estimate some start parameters...
-    #     A = (data - data.min()).max() #amplitude
-
-    #     vs = self.metadata.voxelsize_nm
-    #     x0 =  vs.x*x
-    #     y0 =  vs.y*y
+        # make sure we've built correct filters
+        self.refresh_detector()
+        # at this point, data is in ADU, with offset subtracted and flatfield applied
         
-    #     bgm = np.mean(background)
-
-    #     startParameters = [A, x0 + 70*np.random.randn(), y0+ 70*np.random.randn(), A, x0+ 70*np.random.randn(), y0+ 70*np.random.randn(), 250/2.35, dataMean.min()]	
-
+        # Find candidate molecule positions on background-subtracted frame
+        bgd = (self.data.astype('f') - self.background).squeeze()
+        # print(bgd.shape)
+        # print(self.noiseSigma.shape)
         
-    #     #do the fit
-    #     (res, cov_x, infodict, mesg, resCode) = self.solver(self.fitfcn, startParameters, dataMean, sigma, X, Y)
+        # Note PYME flips row/col y/x, so feed the detector a Transposed frame to get it 'right'
+        strength_image, angle_image = _dh_detector.filter_frame(bgd.T)
+        # assume the max of the image is what we're supposed to fit
+        # row, col = np.argmax(strength_image, axis=0), np.argmax(strength_image, axis=1)
+        row, col = np.where(strength_image == strength_image.max())
+        row, col = row[0], col[0]
+        orientation = angle_image[row, col]
+        # row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, threshold * self.noiseSigma.squeeze())
 
-    #     #try to estimate errors based on the covariance matrix
-    #     fitErrors=None
-    #     try:       
-    #         fitErrors = np.sqrt(np.diag(cov_x)*(infodict['fvec']*infodict['fvec']).sum()/(len(dataMean.ravel())- len(res)))
-    #     except Exception:
-    #         pass
+        # lobe_sep_pix = self.metadata.getEntry('Analysis.LobeSepGuess') / self.metadata.voxelsize_nm.x
+        # x0, y0, x1, y1 = lobe_estimate_from_center_pixel(col, row, orientation, lobe_sep_pix)
+        # convert positions from pixels to nm
+        x_nm = self.metadata.voxelsize_nm.x * (col + self.roi_offset[0])
+        y_nm = self.metadata.voxelsize_nm.y * (row + self.roi_offset[1])
+        # x0_nm = self.metadata.voxelsize_nm.x * (x0 + self.roi_offset[0])
+        # x1_nm = self.metadata.voxelsize_nm.x * (x1 + self.roi_offset[0])
+        # y0_nm = self.metadata.voxelsize_nm.y * (y0 + self.roi_offset[1])
+        # y1_nm = self.metadata.voxelsize_nm.y * (y1 + self.roi_offset[1])
         
-    #     # length = np.sqrt((res[1] - res[4])**2 + (res[2] - res[5])**2)
-        
-    #     if False:
-    #         #display for debugging purposes
-    #         import matplotlib.pyplot as plt
-    #         plt.figure(figsize=(15, 5))
-    #         plt.subplot(141)
-    #         plt.imshow(dataMean)
-    #         plt.colorbar()
-    #         plt.subplot(142)
-    #         plt.imshow(f_dumbell(startParameters, X, Y))
-    #         plt.colorbar()
-    #         plt.subplot(143)
-    #         plt.imshow(f_dumbell(res, X, Y))
-    #         plt.colorbar()
-    #         plt.subplot(144)
-    #         plt.imshow(dataMean-f_dumbell(res, X, Y))
-    #         plt.colorbar()
 
-    #     #package results
-    #     return FitResultR(res, self.metadata, (xslice, yslice, zslice), resCode, fitErrors, bgm, length)
+        #PYME ROISize is a half size
+        # roi_half_size = self.metadata.getEntry('Analysis.ROISize')  # int(2*self.metadata.getEntry('Analysis.ROISize') + 1)
+        lobe_sep = self.metadata.getEntry('Analysis.LobeSepGuess')  # [nm]
+        sigma_guess = self.metadata.getEntry('Analysis.SigmaGuess')  # [nm]
+        ########## Actually do the fits #############
+        # n_cand = len(row)
+        # results = np.empty(n_cand, FitResultsDType)
+
+        # for ind in range(n_cand):
+        # x_pix = col
+        # y_pix = row
+            # X, Y, data, background, sigma, xslice, yslice, zslice = self.getROIAtPoint(x_pix, y_pix, None, roi_half_size)
+
+            # dataMean = data - background
+
+            
+        amp = (data - data.min()).max() #amplitude
+
+        # vs = self.metadata.voxelsize_nm
+        # x0 =  vs.x*x
+        # y0 =  vs.y*y
+        
+        bgm = np.mean(background)
+        guess = (amp, amp, x_nm, y_nm, orientation, lobe_sep, sigma_guess, dataMean.min())
+        # guess = (amp, x0_nm[ind], y0_nm[ind], amp, x1_nm[ind], y1_nm[ind], 160, dataMean.min())
+        
+        #do the fit
+        (res, cov_x, infodict, mesg, resCode) = self.solver(self.fitfcn, guess, data, sigma, X, Y, background)
+
+        #try to estimate errors based on the covariance matrix
+        fit_errors=None
+        try:       
+            fit_errors = np.sqrt(np.diag(cov_x)*(infodict['fvec']*infodict['fvec']).sum()/(len(dataMean.ravel())- len(res)))
+        except Exception:
+            pass
+        
+        # length = np.sqrt((res[1] - res[4])**2 + (res[2] - res[5])**2)
+        # x_com = 0.5 * (res[1] + res[4])
+        # y_com = 0.5 * (res[2] + res[5])
+        # theta = np.arctan2(res[4] - res[1], res[5] - res[2])
+        
+        if False:
+            #display for debugging purposes
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=(20, 5))
+            plt.subplot(151)
+            plt.title('Background')
+            plt.imshow(background)
+            plt.colorbar()
+            plt.subplot(152)
+            plt.title('Background Sub')
+            plt.imshow(dataMean)
+            plt.colorbar()
+            plt.subplot(153)
+            plt.title('Init. Guess')
+            plt.imshow(f_dh(guess, X, Y))
+            plt.colorbar()
+            plt.subplot(154)
+            plt.title('Fitted Results')
+            plt.imshow(f_dh(res, X, Y))
+            plt.colorbar()
+            plt.subplot(155)
+            plt.title('Residuals')
+            plt.imshow(dataMean-f_dh(res, X, Y))
+            plt.colorbar()
+
+        #package results
+        return pack_results(FitResultsDType, self.metadata.tIndex, res, fit_errors, startParams=guess, slicesUsed=(xslice, yslice, zslice), 
+                                resultCode=resCode, subtractedBackground=bgm)
 
     @classmethod
     def evalModel(cls, params, md, x=0, y=0, roiHalfSize=5):
@@ -520,7 +580,7 @@ PARAMETERS = [
                  'Currently the steerable filter is defined with a sigma=1 pix filter, so manually scale it to match your double helix PSF'),
     mde.FloatParam('Analysis.LobeSepGuess', 'Double Helix Lobe Separation Guess [nm]:', 900,
                    'What lobe separation should the fit expect, and therefore begin with?'),
-    mde.FloatParam('Analysis.SigmaGuess', 'Double Helix Lobe Sigma Guess [nm]:', 160,
+    mde.FloatParam('Analysis.SigmaGuess', 'Double Helix Lobe Sigma Guess [nm]:', 180,
                    'Estimate for Gaussian sigma parameter to initialize the fitting')
 ]
 
