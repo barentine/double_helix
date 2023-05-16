@@ -2,15 +2,16 @@
 import numpy as np
 from scipy.interpolate import LSQUnivariateSpline
 
-def calibrate_double_helix_psf(image):
+def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
     #TODO - move all non-GUI logic for this out of this file?
     from PYME.recipes.measurement import FitPoints
-    from PYME.IO.FileUtils import nameUtils
-    import matplotlib.pyplot as plt
-    import matplotlib.cm
-    import json
-    from PYME.Analysis.PSFEst import extractImages
+    # from PYME.Analysis.PSFEst import extractImages
 
+
+    # from PYME.IO.FileUtils import nameUtils
+    # import matplotlib.pyplot as plt
+    # import matplotlib.cm
+    # import json
     # query user for type of calibration
     # NB - GPU fit is not enabled here because it exits on number of iterations, which is not necessarily convergence for very bright beads!
     # ftypes = ['BeadConvolvedAstigGaussFit', 'AstigGaussFitFR']  # , 'AstigGaussGPUFitFR']
@@ -36,35 +37,36 @@ def calibrate_double_helix_psf(image):
     n_steps = image.data_xyztc.shape[2]
     obj_positions = {}
 
-    obj_positions['x'] = vs_x_nm * 0.5 * self.image.data.shape[0] * np.ones(n_steps)
-    obj_positions['y'] = vs_y_nm * 0.5 * self.image.data.shape[1] * np.ones(n_steps)
-    obj_positions['t'] = np.arange(self.image.data.shape[2])
-    z = np.arange(self.image.data.shape[2]) * self.image.mdh['voxelsize.z'] * 1.e3
+    obj_positions['x'] = vs_x_nm * 0.5 * image.data_xyztc.shape[0] * np.ones(n_steps)
+    obj_positions['y'] = vs_y_nm * 0.5 * image.data_xyztc.shape[1] * np.ones(n_steps)
+    obj_positions['t'] = np.arange(image.data.shape[2])
+    z = np.arange(image.data_xyztc.shape[2]) * image.mdh['voxelsize.z'] * 1.e3
     obj_positions['z'] = z - z.mean()
-
-    ptFitter = FitPoints()
-    ptFitter.trait_set(roiHalfSize=11)
-    ptFitter.trait_set(fitModule=fitMod)
-
-    namespace = {'input' : self.image, 'objPositions' : obj_positions}
 
     results = []
 
-    for chanNum in range(self.image.data.shape[3]):
+    for chan_ind in range(image.data_xyztc.shape[3]):
         # get z centers
-        dx, dy, dz = extractImages.getIntCenter(self.image.data[:, :, :, chanNum])
+        # dx, dy, dz = extractImages.getIntCenter(image.data_xyztc[:, :, :, chan_ind])
 
-        ptFitter.trait_set(channel=chanNum)
-        ptFitter.execute(namespace)
+        res = FitPoints().apply_simple(inputImage=image, 
+                                       inputPositions=obj_positions,
+                                       roiHalfSize=roi_half_size,
+                                       fitModule=fit_module, channel=chan_ind)
 
-        res = namespace['fitResults']
-
-        dsigma = abs(res['fitResults_sigmax']) - abs(res['fitResults_sigmay'])
-        valid = ((res['fitError_sigmax'] > 0) * (res['fitError_sigmax'] < 50)* (res['fitError_sigmay'] < 50)*(res['fitResults_A'] > 0) > 0)
-
-        results.append({'sigmax': abs(res['fitResults_sigmax'][valid]).tolist(),'error_sigmax': abs(res['fitError_sigmax'][valid]).tolist(),
-                        'sigmay': abs(res['fitResults_sigmay'][valid]).tolist(), 'error_sigmay': abs(res['fitError_sigmay'][valid]).tolist(),
-                        'dsigma': dsigma[valid].tolist(), 'z': obj_positions['z'][valid].tolist(), 'zCenter': obj_positions['z'][int(dz)]})
+        # dsigma = abs(res['fitResults_sigmax']) - abs(res['fitResults_sigmay'])
+        # valid = ((res['fitError_sigmax'] > 0) * (res['fitError_sigmax'] < 50)* (res['fitError_sigmay'] < 50)*(res['fitResults_A'] > 0) > 0)
+        results.append([
+            {
+                'theta': res['fitResults_theta'].tolist(),
+                'lobesep': res['fitResults_lobesep'].tolist(),
+                'sigma': res['fitResults_lobesep'].tolist(),
+                'z': obj_positions['z'].tolist(),
+            }
+        ])
+        # results.append({'sigmax': abs(res['fitResults_sigmax'][valid]).tolist(),'error_sigmax': abs(res['fitError_sigmax'][valid]).tolist(),
+                        # 'sigmay': abs(res['fitResults_sigmay'][valid]).tolist(), 'error_sigmay': abs(res['fitError_sigmay'][valid]).tolist(),
+                        # 'dsigma': dsigma[valid].tolist(), 'z': obj_positions['z'][valid].tolist(), 'zCenter': obj_positions['z'][int(dz)]})
 
     #generate new tab to show results
     # use_web_view = False
