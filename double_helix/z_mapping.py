@@ -49,26 +49,27 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
         # get z centers
         # dx, dy, dz = extractImages.getIntCenter(image.data_xyztc[:, :, :, chan_ind])
 
-        res = FitPoints().apply_simple(inputImage=image, 
-                                       inputPositions=obj_positions,
-                                       roiHalfSize=roi_half_size,
-                                       fitModule=fit_module, channel=chan_ind)
+        res = FitPoints(roiHalfSize=roi_half_size,
+                        fitModule=fit_module, 
+                        channel=chan_ind).apply_simple(
+                                            inputImage=image, 
+                                            inputPositions=obj_positions,
+                                            )
 
         # dsigma = abs(res['fitResults_sigmax']) - abs(res['fitResults_sigmay'])
         # valid = ((res['fitError_sigmax'] > 0) * (res['fitError_sigmax'] < 50)* (res['fitError_sigmay'] < 50)*(res['fitResults_A'] > 0) > 0)
-        results.append([
-            {
+        print(res.keys())
+        results.append({
                 'theta': res['fitResults_theta'].tolist(),
                 'lobesep': res['fitResults_lobesep'].tolist(),
-                'sigma': res['fitResults_lobesep'].tolist(),
+                'sigma': res['fitResults_sigma'].tolist(),
                 'z': obj_positions['z'].tolist(),
-            }
-        ])
+            })
         # results.append({'sigmax': abs(res['fitResults_sigmax'][valid]).tolist(),'error_sigmax': abs(res['fitError_sigmax'][valid]).tolist(),
                         # 'sigmay': abs(res['fitResults_sigmay'][valid]).tolist(), 'error_sigmay': abs(res['fitError_sigmay'][valid]).tolist(),
                         # 'dsigma': dsigma[valid].tolist(), 'z': obj_positions['z'][valid].tolist(), 'zCenter': obj_positions['z'][int(dz)]})
 
-    #generate new tab to show results
+#generate new tab to show results
     # use_web_view = False
     # if not '_astig_view' in dir(self):
     #     try:
@@ -151,7 +152,7 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
 
     return results
 
-def lookup_astig_z(fres, astig_calibrations, rough_knot_spacing=75., plot=False):
+def lookup_dh_z(fres, dh_calibration, rough_knot_spacing=75., plot=False):
     """
     Generates a look-up table of sorts for z based on sigma x/y fit results and calibration information. If a molecule
     appears on multiple planes, sigma values from both planes will be used in the look up.
@@ -180,13 +181,13 @@ def lookup_astig_z(fres, astig_calibrations, rough_knot_spacing=75., plot=False)
     """
     # fres = pipeline.selectedDataSource.resultsSource.fitResults
     # numMolecules = len(fres['x']) # there is no guarantee that fitResults_x0 will be present - change to x
-    numChans = len(astig_calibrations)
+    # n_chan = len(calibration)
 
     # find overall min and max z values
     z_min = 0
     z_max = 0
-    for astig_cal in astig_calibrations: #more idiomatic way of looping through list - also avoids one list access / lookup
-        r_min, r_max = astig_cal['zRange']
+    for cal in calibration: #more idiomatic way of looping through list - also avoids one list access / lookup
+        r_min, r_max = cal['zRange']
         z_min = min(z_min, r_min)
         z_max = max(z_max, r_max)
 

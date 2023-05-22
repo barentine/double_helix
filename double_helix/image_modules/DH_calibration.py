@@ -16,7 +16,7 @@ class DHCalibrator(Plugin):
         #         self.dsviewer.AddPage(self._dh_view, True, 'Double-Helix Cal.')
 
         #     except (NotImplementedError, AttributeError):
-        #         self.use_web_view = False
+        self.use_web_view = False
         
         logging.debug('Adding menu items for double-helix PSF calibration')
         dsviewer.AddMenuItem('Processing', 'Calibrate DH PSF', self.OnCalibrate)        
@@ -28,7 +28,9 @@ class DHCalibrator(Plugin):
         import matplotlib.pyplot as plt
         import matplotlib.cm
         import json
+        import os
         from double_helix.z_mapping import calibrate_double_helix_psf
+        from double_helix.z_range_dialog import ZRangeDialog
         # query user for type of calibration
         # ftypes = ['Double Helix Theta', 'Double Helix Separate Gaussians']  # , 'AstigGaussGPUFitFR']
         # fit_type_dlg = wx.SingleChoiceDialog(self.dsviewer, 'Fit-type selection', 'Fit-type selection', ftypes)
@@ -36,19 +38,23 @@ class DHCalibrator(Plugin):
         # fit_mod = ftypes[fit_type_dlg.GetSelection()]
         fit_mod = 'DoubleHelixFit_Theta'
 
-        res = calibrate_double_helix_psf(self.dsviewer.image, fit_mod)
+        results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod)
 
         # do plotting
         plt.ioff()
-        f = plt.figure(figsize=(10, 4))
+        f = plt.figure(figsize=(10, 12))
         # colors = iter(matplotlib.cm.Dark2(np.linspace(0, 1, 2*self.image.data.shape[3])))
-        plt.subplot(121)
-        for i, res in enumerate(res):
+        plt.subplot(311)
+        for ind, res in enumerate(results):
             # nextColor1 = next(colors)
             # nextColor2 = next(colors)
             if 'heta' in fit_mod:
                 plt.plot(res['z'], res['theta'], label='Theta [rad.]')
+                plt.legend()
+                plt.subplot(312)
                 plt.plot(res['z'], res['lobesep'], label='Lobe Separation [nm]')
+                plt.legend()
+            plt.subplot(313)
             plt.plot(res['z'], res['sigma'], label='sigma [nm]')
             
             # lbz = np.absolute(res['z'] - res['zRange'][0]).argmin()
@@ -95,6 +101,16 @@ class DHCalibrator(Plugin):
             plt.show()
         else:
             plt.show()
+        
+        zr_dialog = ZRangeDialog(None)
+        succ = zr_dialog.ShowModal()
+        if succ == wx.ID_OK:
+            zmin = zr_dialog.zMin.GetValue()
+            zmax = zr_dialog.zMax.GetValue()
+        
+        # write specified z range into results
+        for ind, res in enumerate(results):
+            res['z_range'] = (zmin, zmax)
 
         fdialog = wx.FileDialog(None, 'Save Double Helix Calibration as ...',
             wildcard='dh_json (*.dh_json)|*.dh_json', style=wx.FD_SAVE, defaultDir=nameUtils.genShiftFieldDirectoryPath())  #, defaultFile=defFile)
@@ -103,16 +119,16 @@ class DHCalibrator(Plugin):
             fpath = fdialog.GetPath()
 
             fid = open(fpath, 'w', encoding='utf8')
-            json.dump(res, fid, indent=4, sort_keys=True)
+            json.dump(results, fid, indent=4, sort_keys=True)
             fid.close()
-            # if use_web_view:  # save the html too
-            #     import os
-            #     fpath = os.path.splitext(fpath)[0] + '.html'
-            #     with open(fpath, 'wb') as fid:
-            #         fid.write(html.encode('utf-8'))
+            if self.use_web_view:  # save the html too
+                fpath = os.path.splitext(fpath)[0] + '.html'
+                with open(fpath, 'wb') as fid:
+                    fid.write(html.encode('utf-8'))
+            else:
+                plt.savefig(os.path.splitext(fpath)[0] + '.png')
 
 def Plug(dsviewer):
-    print('IN THE PLUG METHOD!!!')
     dsviewer.PSFTools = DHCalibrator(dsviewer)
     # if dsviewer.do.ds.shape[2] > 1:
     #     dsviewer.crbv = CRBViewPanel(dsviewer, dsviewer.image)
