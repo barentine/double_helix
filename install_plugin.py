@@ -6,7 +6,6 @@ import shutil
 
 def main():
     this_dir = os.path.dirname(__file__)
-    print(sys.argv)
     shutil.copy(os.path.join(this_dir, sys.argv[1] + '.yaml'), os.path.join(config.user_config_dir, 'plugins'))
     # try:
     #     if sys.argv[1] == 'dist':

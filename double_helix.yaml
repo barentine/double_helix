@@ -2,8 +2,8 @@ visgui:
     - double_helix.vis_modules.DH_mappings
     
 # a list of fully qualified import paths for dh5view plugins
-# dsviewer:
-#     - somepackage.somemodule
+dsviewer:
+    - double_helix.image_modules.z_calibration
     
 # a list of fully qualified import paths for recipe modules
 recipes:
