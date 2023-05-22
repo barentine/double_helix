@@ -152,7 +152,7 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
 
     return results
 
-def lookup_dh_z(fres, dh_calibration, rough_knot_spacing=75., plot=False):
+def lookup_dh_z(fres, calibration, rough_knot_spacing=75., plot=False):
     """
     Generates a look-up table of sorts for z based on sigma x/y fit results and calibration information. If a molecule
     appears on multiple planes, sigma values from both planes will be used in the look up.
@@ -187,42 +187,78 @@ def lookup_dh_z(fres, dh_calibration, rough_knot_spacing=75., plot=False):
     z_min = 0
     z_max = 0
     for cal in calibration: #more idiomatic way of looping through list - also avoids one list access / lookup
-        r_min, r_max = cal['zRange']
+        r_min, r_max = cal['z_range']
         z_min = min(z_min, r_min)
         z_max = max(z_max, r_max)
 
     # generate z vector for interpolation
-    zVal = np.arange(z_min, z_max)
+    z_v = np.arange(z_min, z_max)
 
     # generate look up table of sorts
-    sigCalX = []
-    sigCalY = []
-    for i, astig_cal in enumerate(astig_calibrations):
-        zdat = np.array(astig_cal['z'])
+    # sig_cal = []
+    # theta_cal = []
+    # lobesep_cal = []
+    z = []
+    z_err = []
+    for c_ind, cal in enumerate(calibration):
+        # grab locs for this color channel only
+        # FIXME
+        sigma = fres['sigma']
+        error_sigma = fres['fitErrors_sigma']
+        theta = fres['theta']
+        error_theta = fres['fitErrors_sigma']
+        lobesep = fres['lobesep']
+        error_lobesep = fres['fitErrors_lobesep']
 
+
+        zdat = np.array(cal['z'])
         # grab indices of range we trust
-        z_range = astig_cal['zRange']
+        z_range = cal['z_range']
         z_valid_mask = (zdat > z_range[0])*(zdat < z_range[1])
         z_valid = zdat[z_valid_mask]
-
         # generate splines with knots spaced roughly as rough_knot_spacing [nm]
         z_steps = np.unique(z_valid)
         dz_med = np.median(np.diff(z_steps))
         smoothing_factor = int(rough_knot_spacing / (dz_med))
         knots = z_steps[1:-1:smoothing_factor]
 
-        sigCalX.append(LSQUnivariateSpline(z_valid,np.array(astig_cal['sigmax'])[z_valid_mask], knots, ext='const')(zVal))
-        sigCalY.append(LSQUnivariateSpline(z_valid,np.array(astig_cal['sigmay'])[z_valid_mask], knots, ext='const')(zVal))
+        sig_cal = LSQUnivariateSpline(z_valid, np.array(cal['sigma'])[z_valid_mask], knots, ext='const')(z_v)
+        theta_cal = LSQUnivariateSpline(z_valid, np.array(cal['theta'])[z_valid_mask], knots, ext='const')(z_v)
+        lobesep_cal = LSQUnivariateSpline(z_valid, np.array(cal['lobesep'])[z_valid_mask], knots, ext='const')(z_v)
 
-    sigCalX = np.array(sigCalX)
-    sigCalY = np.array(sigCalY)
+    # sig_cal = np.array(sig_cal)
+    # theta_cal = np.array(theta_cal)
+    # lobesep_cal = np.array(lobesep_cal)
 
     # #allocate arrays for the estimated z positions and their errors
     # z = np.zeros(numMolecules)
     # zerr = 1e4 * np.ones(numMolecules)
     #
     # failures = 0
-    chans = np.arange(numChans)
+    # chans = np.arange(len(calibration))
+    # for chan in range(len(cali))
+        z_out = np.empty_like(theta)
+        error_z_out = np.empty_like(theta)
+        for ind in range(len(theta)):
+            sigma_residual = np.abs(sigma[ind] - sig_cal)  # [nm]
+            theta_residual = np.sin(theta[ind] - theta_cal)  # [rad.]
+            lobesep_residual = np.abs(lobesep[ind] - lobesep_cal)  # [nm]
+            
+            sigma_normed = sigma_residual ** 2 / error_sigma[ind] ** 2
+            theta_normed = theta_residual ** 2 / error_theta[ind] ** 2
+            lobesep_normed = lobesep_residual ** 2 / error_lobesep[ind] ** 2
+
+            min_loc = np.argmin(np.stack([
+                sigma_normed, 
+                theta_normed, 
+                lobesep_normed
+            ], axis=0).sum(axis=0))
+
+            z_out[ind] = z_v[min_loc]
+            error_z_out[ind] = 1  # FIXME
+        z.append(z_out)
+        z_err.append(error_z_out)
+    return z, z_err
 
     #extract our sigmas and their errors
     #doing this here means we only do the string operations and look-ups once, rather than once per molecule
@@ -238,12 +274,12 @@ def lookup_dh_z(fres, dh_calibration, rough_knot_spacing=75., plot=False):
 
         plt.figure()
         plt.subplot(211)
-        for astig_cal, interp_sigx, col in zip(astig_calibrations, sigCalX, ['r', 'g', 'b', 'c']):
+        for astig_cal, interp_sigx, col in zip(calibration, sigCalX, ['r', 'g', 'b', 'c']):
             plt.plot(astig_cal['z'], astig_cal['sigmax'], ':', c=col)
             plt.plot(zVal, interp_sigx, c=col)
 
         plt.subplot(212)
-        for astig_cal, interp_sigy, col in zip(astig_calibrations, sigCalY, ['r', 'g', 'b', 'c']):
+        for astig_cal, interp_sigy, col in zip(calibration, sigCalY, ['r', 'g', 'b', 'c']):
             plt.plot(astig_cal['z'], astig_cal['sigmay'], ':', c=col)
             plt.plot(zVal, interp_sigy, c=col)
 
