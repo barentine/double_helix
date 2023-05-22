@@ -3,7 +3,7 @@ visgui:
     
 # a list of fully qualified import paths for dh5view plugins
 dsviewer:
-    - double_helix.image_modules.z_calibration
+    - double_helix.image_modules.DH_calibration
     
 # a list of fully qualified import paths for recipe modules
 recipes:

@@ -8,16 +8,17 @@ logger = logging.getLogger(__name__)
 class DHCalibrator(Plugin):
     def __init__(self, dsviewer):
         Plugin.__init__(self, dsviewer)
-        #generate new tab to show results
-        self.use_web_view = True
-        if not '_dh_view' in dir(self):
-            try:
-                self._dh_view= wx.html2.WebView.New(self.dsviewer)
-                self.dsviewer.AddPage(self._dh_view, True, 'Double-Helix Cal.')
+        # #generate new tab to show results
+        # self.use_web_view = True
+        # if not '_dh_view' in dir(self):
+        #     try:
+        #         self._dh_view= wx.html2.WebView.New(self.dsviewer)
+        #         self.dsviewer.AddPage(self._dh_view, True, 'Double-Helix Cal.')
 
-            except (NotImplementedError, AttributeError):
-                self.use_web_view = False
+        #     except (NotImplementedError, AttributeError):
+        #         self.use_web_view = False
         
+        logging.debug('Adding menu items for double-helix PSF calibration')
         dsviewer.AddMenuItem('Processing', 'Calibrate DH PSF', self.OnCalibrate)        
         # dsviewer.AddMenuItem('Processing', 'Generate &Mask', self.OnApplyThreshold)
         # dsviewer.AddMenuItem('Processing', '&Label', self.OnLabelSizeThreshold)   
@@ -111,6 +112,7 @@ class DHCalibrator(Plugin):
             #         fid.write(html.encode('utf-8'))
 
 def Plug(dsviewer):
+    print('IN THE PLUG METHOD!!!')
     dsviewer.PSFTools = DHCalibrator(dsviewer)
     # if dsviewer.do.ds.shape[2] > 1:
     #     dsviewer.crbv = CRBViewPanel(dsviewer, dsviewer.image)
