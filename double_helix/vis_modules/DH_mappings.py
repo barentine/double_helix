@@ -23,10 +23,14 @@ class DHMapper(object):
 
         dh_mapper = DoubleHelixMapZ(recipe, input_name=self.pipeline.selectedDataSourceKey,
                                     output_name='dh_mapped')
-        import wx
-        wx.SizerFlags.DisableConsistencyChecks()
-        dh_mapper.configure_traits(kind='modal')
-        # FIXME - add a configure modal thing here once we have z-mapping set up for DHMappings
+        
+        try:
+            dh_mapper.configure_traits(kind='modal')
+        except:
+            import wx
+            wx.SizerFlags.DisableConsistencyChecks()
+            dh_mapper.configure_traits(kind='modal')
+        
         recipe.add_modules_and_execute([dh_mapper,])
         self.pipeline.selectDataSource('dh_mapped')
         
