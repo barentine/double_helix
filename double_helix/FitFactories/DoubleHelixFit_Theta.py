@@ -353,7 +353,10 @@ class DumbellFitFactory(FFBase.FitFactory):
         # at this point, data is in ADU, with offset subtracted and flatfield applied
         
         # Find candidate molecule positions on background-subtracted frame
-        bgd = (self.data.astype('f') - self.background).squeeze()
+        if self.background is not None:
+            bgd = (self.data.astype('f') - self.background).squeeze()
+        else:
+            bgd = self.data.astype('f').squeeze()
         # print(bgd.shape)
         # print(self.noiseSigma.shape)
         
@@ -457,7 +460,10 @@ class DumbellFitFactory(FFBase.FitFactory):
         # at this point, data is in ADU, with offset subtracted and flatfield applied
         
         # Find candidate molecule positions on background-subtracted frame
-        bgd = (self.data.astype('f') - self.background).squeeze()
+        if self.background is not None:
+            bgd = (self.data.astype('f') - self.background).squeeze()
+        else:
+            bgd = self.data.astype('f').squeeze()
         # print(bgd.shape)
         # print(self.noiseSigma.shape)
         
