@@ -152,7 +152,7 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
 
     return results
 
-def lookup_dh_z(fres, calibration, rough_knot_spacing=101., channel_ind=0, plot=False):
+def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
     """
     Generates a look-up table of sorts for z based on sigma x/y fit results and calibration information. If a molecule
     appears on multiple planes, sigma values from both planes will be used in the look up.
@@ -180,6 +180,7 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., channel_ind=0, plot=
 
     """
     from PYME.IO.tabular import ColourFilter, MappingFilter, ConcatenateFilter
+    from PYME.recipes.graphing import Plot
     # fres = pipeline.selectedDataSource.resultsSource.fitResults
     # numMolecules = len(fres['x']) # there is no guarantee that fitResults_x0 will be present - change to x
     # n_chan = len(calibration)
@@ -194,6 +195,11 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., channel_ind=0, plot=
 
     # generate z vector for interpolation
     z_v = np.arange(z_min, z_max)
+    # store for plotting later
+    theta_cals = []
+    sig_cals = []
+    lobesep_cals = []
+
     for c_ind, cal in enumerate(calibration):
         # grab localizations corresponding to this channel
         chan = ColourFilter(fres, currentColour=c_ind)
@@ -218,8 +224,11 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., channel_ind=0, plot=
         knots = z_steps[1:-1:smoothing_factor]
 
         sig_cal = LSQUnivariateSpline(z_valid, np.array(cal['sigma'])[z_valid_mask], knots, ext='const')(z_v)
+        sig_cals.append(sig_cal)
         theta_cal = LSQUnivariateSpline(z_valid, np.array(cal['theta'])[z_valid_mask], knots, ext='const')(z_v)
+        theta_cals.append(theta_cal)
         lobesep_cal = LSQUnivariateSpline(z_valid, np.array(cal['lobesep'])[z_valid_mask], knots, ext='const')(z_v)
+        lobesep_cals.append(lobesep_cal)
 
     # sig_cal = np.array(sig_cal)
     # theta_cal = np.array(theta_cal)
@@ -253,14 +262,77 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., channel_ind=0, plot=
             error_z_out[ind] = 1  # FIXME
         chan = MappingFilter(chan)
         chan.addColumn('dh_z', z_out)
-        chan.addColumn('dh_z_lookup_error', error_z_out)
+        chan.addColumn('dh_z_lookup_error', error_z_out)            
+
         if c_ind < 1:
             dh_loc = chan
         else:
             dh_loc = ConcatenateFilter(dh_loc, chan)
     dh_loc.setMapping('z', 'dh_z + z')
-        
-    return dh_loc
+    
+    if not plot:
+        return dh_loc
+    else:
+        return dh_loc, Plot(lambda: plot_dh_z_lookup([{
+            'theta': theta_cals[c_ind],
+            'sigma': sig_cals[c_ind],
+            'lobesep': lobesep_cals[c_ind],
+            'z_v': z_v
+        } for c_ind in range(len(calibration))], dh_loc))
+    # {'outputTable' : out,
+    #             'outputPlot' : Plot(lambda: edtColoc.plot_image_dist_coloc_figure(bins, enrichment, enrichment_m,
+    #                                                                                     enclosed, enclosed_m,
+    #                                                                                     enclosed_area,
+    #                                                                                     nameA=inputMask.names[0],
+    #                                                                                     nameB=inputImage.names[0]))}
+
+def plot_dh_z_lookup(calibration_splines, dh_loc):
+    from matplotlib import pyplot as plt
+    from PYME.IO.tabular import ColourFilter
+    fig = plt.figure()
+    plt.subplots(3, 1)
+
+    for c_ind, cal in enumerate(calibration_splines):
+        # grab localizations corresponding to this channel
+        chan = ColourFilter(dh_loc, currentColour=c_ind)
+
+        sigma = chan['fitResults_sigma']
+        error_sigma = chan['fitError_sigma']
+        theta = chan['fitResults_theta']
+        error_theta = chan['fitError_theta']
+        lobesep = chan['fitResults_lobesep']
+        error_lobesep = chan['fitError_lobesep']
+        z_out = chan['dh_z']
+        z_v = cal['z_v']
+
+        plt.subplot(311)
+        plt.plot(z_v, cal['theta'], ':', label='Splined Cal.')
+        plt.errorbar(z_out, theta, error_theta, linestyle='')
+
+        plt.subplot(312)
+        plt.plot(z_v, cal['sigma'], ':', label='Splined Cal.')
+        plt.errorbar(z_out, sigma, error_sigma, linestyle='')
+
+        plt.subplot(313)
+        plt.plot(z_v, cal['lobesep'], ':', label='Splined Cal.')
+        plt.errorbar(z_out, lobesep, error_lobesep, linestyle='')
+    
+    plt.subplot(311)
+    plt.ylabel('Theta [rad]')
+    plt.xlabel('Z [nm]')
+    plt.legend()
+
+    plt.subplot(312)
+    plt.ylabel('Sigma [nm]')
+    plt.xlabel('Z [nm]')
+    plt.legend()
+    
+    plt.subplot(313)
+    plt.ylabel('Lobe Separation [nm]')
+    plt.xlabel('Z [nm]')
+    plt.legend()
+
+    return fig
 
     #extract our sigmas and their errors
     #doing this here means we only do the string operations and look-ups once, rather than once per molecule

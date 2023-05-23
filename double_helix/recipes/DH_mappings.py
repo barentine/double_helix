@@ -1,6 +1,6 @@
 
 from PYME.recipes.base import ModuleBase, register_module
-from PYME.recipes.traits import Input, Output, FileOrURI, CStr, Int
+from PYME.recipes.traits import Input, Output, FileOrURI, Float
 from PYME.IO import tabular
 import numpy as np
 
@@ -46,6 +46,8 @@ class DoubleHelixMapZ(ModuleBase):
     """Create a new mapping object which derives mapped keys from original ones"""
     input_name = Input('localizations')
     calibration_location = FileOrURI('')
+    target_knot_spacing = Float(101)
+    plot_name = Output('dh_z_lookup_plot')
     output_name = Output('dh_localizations')
 
     def run(self, input_name):
@@ -58,7 +60,8 @@ class DoubleHelixMapZ(ModuleBase):
         s = unifiedIO.read(self.calibration_location)
         calibration = json.loads(s)
 
-        dh_loc = lookup_dh_z(dh_loc, calibration)
+        # dh_loc = lookup_dh_z(dh_loc, calibration, rough_knot_spacing=self.target_knot_spacing)
+        dh_loc, rec_plot = lookup_dh_z(dh_loc, calibration, rough_knot_spacing=self.target_knot_spacing, plot=True)
 
         # FIXME - A and B are amplitudes, not sum-norms
         # n_adu = (dh_loc['fitResults_A'] + dh_loc['fitResults_B'])  # [ADU]
@@ -71,4 +74,8 @@ class DoubleHelixMapZ(ModuleBase):
 
         dh_loc.mdh = MetaDataHandler.NestedClassMDHandler(input_name.mdh)
         dh_loc.mdh['Analysis.dh_calibration_used'] = self.calibration_location
-        return dh_loc
+        # return dh_loc
+        return {
+            'output_name': dh_loc,
+            'plot_name': rec_plot
+        }
