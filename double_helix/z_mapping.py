@@ -152,7 +152,7 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
 
     return results
 
-def lookup_dh_z(fres, calibration, rough_knot_spacing=75., plot=False):
+def lookup_dh_z(fres, calibration, rough_knot_spacing=101., channel_ind=0, plot=False):
     """
     Generates a look-up table of sorts for z based on sigma x/y fit results and calibration information. If a molecule
     appears on multiple planes, sigma values from both planes will be used in the look up.
@@ -179,6 +179,7 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=75., plot=False):
         discrepancies between sigma values and the PSF calibration curves
 
     """
+    from PYME.IO.tabular import ColourFilter, MappingFilter, ConcatenateFilter
     # fres = pipeline.selectedDataSource.resultsSource.fitResults
     # numMolecules = len(fres['x']) # there is no guarantee that fitResults_x0 will be present - change to x
     # n_chan = len(calibration)
@@ -188,33 +189,27 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=75., plot=False):
     z_max = 0
     for cal in calibration: #more idiomatic way of looping through list - also avoids one list access / lookup
         r_min, r_max = cal['z_range']
-        z_min = min(z_min, r_min)
-        z_max = max(z_max, r_max)
+        z_min = min(z_min, float(r_min))
+        z_max = max(z_max, float(r_max))
 
     # generate z vector for interpolation
     z_v = np.arange(z_min, z_max)
-
-    # generate look up table of sorts
-    # sig_cal = []
-    # theta_cal = []
-    # lobesep_cal = []
-    z = []
-    z_err = []
     for c_ind, cal in enumerate(calibration):
-        # grab locs for this color channel only
-        # FIXME
-        sigma = fres['sigma']
-        error_sigma = fres['fitErrors_sigma']
-        theta = fres['theta']
-        error_theta = fres['fitErrors_sigma']
-        lobesep = fres['lobesep']
-        error_lobesep = fres['fitErrors_lobesep']
+        # grab localizations corresponding to this channel
+        chan = ColourFilter(fres, currentColour=c_ind)
+
+        sigma = chan['fitResults_sigma']
+        error_sigma = chan['fitError_sigma']
+        theta = chan['fitResults_theta']
+        error_theta = chan['fitError_theta']
+        lobesep = chan['fitResults_lobesep']
+        error_lobesep = chan['fitError_lobesep']
 
 
         zdat = np.array(cal['z'])
         # grab indices of range we trust
         z_range = cal['z_range']
-        z_valid_mask = (zdat > z_range[0])*(zdat < z_range[1])
+        z_valid_mask = (zdat > float(z_range[0]))*(zdat < float(z_range[1]))
         z_valid = zdat[z_valid_mask]
         # generate splines with knots spaced roughly as rough_knot_spacing [nm]
         z_steps = np.unique(z_valid)
@@ -256,9 +251,16 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=75., plot=False):
 
             z_out[ind] = z_v[min_loc]
             error_z_out[ind] = 1  # FIXME
-        z.append(z_out)
-        z_err.append(error_z_out)
-    return z, z_err
+        chan = MappingFilter(chan)
+        chan.addColumn('dh_z', z_out)
+        chan.addColumn('dh_z_lookup_error', error_z_out)
+        if c_ind < 1:
+            dh_loc = chan
+        else:
+            dh_loc = ConcatenateFilter(dh_loc, chan)
+    dh_loc.setMapping('z', 'dh_z + z')
+        
+    return dh_loc
 
     #extract our sigmas and their errors
     #doing this here means we only do the string operations and look-ups once, rather than once per molecule

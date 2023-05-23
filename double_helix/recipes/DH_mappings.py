@@ -1,6 +1,6 @@
 
 from PYME.recipes.base import ModuleBase, register_module
-from PYME.recipes.traits import Input, Output, FileOrURI
+from PYME.recipes.traits import Input, Output, FileOrURI, CStr, Int
 from PYME.IO import tabular
 import numpy as np
 
@@ -48,27 +48,27 @@ class DoubleHelixMapZ(ModuleBase):
     calibration_location = FileOrURI('')
     output_name = Output('dh_localizations')
 
-    def run(self, input_name, calibration_location):
+    def run(self, input_name):
         from double_helix.z_mapping import lookup_dh_z
         from PYME.IO import unifiedIO, MetaDataHandler
         import ujson as json
         
         dh_loc = tabular.MappingFilter(input_name)
 
-        s = unifiedIO.read(calibration_location)
+        s = unifiedIO.read(self.calibration_location)
         calibration = json.loads(s)
 
-        z, zerr = lookup_dh_z(dh_loc, calibration)
+        dh_loc = lookup_dh_z(dh_loc, calibration)
 
         # FIXME - A and B are amplitudes, not sum-norms
         # n_adu = (dh_loc['fitResults_A'] + dh_loc['fitResults_B'])  # [ADU]
         # # data was fitted in offset + flat corrected ADU, change to e-
         # n_photoelectrons = n_photoelectrons * dh_loc.mdh['Camera.ElectronsPerCount'] /  # [e-]
         
-        dh_loc.addColumn('dh_z', z)
-        dh_loc.addColumn('dh_z_lookup_error', zerr)
-        dh_loc.setMapping('z', 'dh_z + z')
+        # dh_loc.addColumn('dh_z', z)
+        # dh_loc.addColumn('dh_z_lookup_error', zerr)
+        # dh_loc.setMapping('z', 'dh_z + z')
 
         dh_loc.mdh = MetaDataHandler.NestedClassMDHandler(input_name.mdh)
-        dh_loc.mdh['Analysis.dh_calibration_used'] = calibration_location
+        dh_loc.mdh['Analysis.dh_calibration_used'] = self.calibration_location
         return dh_loc

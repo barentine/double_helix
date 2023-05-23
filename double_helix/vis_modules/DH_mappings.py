@@ -11,23 +11,26 @@ class DHMapper(object):
 
         logging.debug('Adding menu items for double helix localizations')
 
-        vis_frame.AddMenuItem('Corrections>Double Helix>Map and filter on DH parameters',
+        vis_frame.AddMenuItem('Corrections>Double Helix', 'Map and filter on DH parameters',
                               self.OnMapAndFilter)
 
     def OnMapAndFilter(self, wx_event):
-        from double_helix.recipes.DH_mappings import DHMappings
+        from double_helix.recipes.DH_mappings import DoubleHelixMapZ
         from PYME.recipes.tablefilters import FilterTable
+        import numpy as np
 
         recipe = self.pipeline.recipe
 
-        dh_mapper = DHMappings(recipe, input_name=self.pipeline.selectedDataSourceKey,
-                               output_name='dh_mapped')
-        
+        dh_mapper = DoubleHelixMapZ(recipe, input_name=self.pipeline.selectedDataSourceKey,
+                                    output_name='dh_mapped')
+        import wx
+        wx.SizerFlags.DisableConsistencyChecks()
+        dh_mapper.configure_traits(kind='modal')
         # FIXME - add a configure modal thing here once we have z-mapping set up for DHMappings
         recipe.add_modules_and_execute([dh_mapper,])
-         self.pipeline.selectDataSource('dh_mapped')
+        self.pipeline.selectDataSource('dh_mapped')
         
-        lobe_sep = np.median(pipeline)
+        lobe_sep = np.median(self.pipeline['fitResults_lobesep'])
         lobe_sep_half_range = 0.15 * lobe_sep
         lobe_sep_min = lobe_sep - lobe_sep_half_range
         lobe_sep_max = lobe_sep + lobe_sep_half_range
@@ -36,9 +39,9 @@ class DHMapper(object):
                                 filters={
                                     'error_x' : [0, 30],  # [nm]
                                     'error_y': [0, 30],  # [nm]
-                                    'lobe_separation': [lobe_sep_min, lobe_sep_max],  # [nm]
-                                    'error_theta': [0, 0.3],  # [rad]
-                                    'n_photoelectrons': [100, 10000],  # [pe-]
+                                    'fitResults_lobesep': [lobe_sep_min, lobe_sep_max],  # [nm]
+                                    'fitError_theta': [0, 0.3],  # [rad]
+                                    # 'n_photoelectrons': [100, 10000],  # [pe-]
                                     }, outputName='dh_filtered')
         
         
