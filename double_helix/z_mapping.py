@@ -197,19 +197,19 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
     z_v = np.arange(z_min, z_max)
     # store for plotting later
     theta_cals = []
-    sig_cals = []
-    # lobesep_cals = []
+    # sig_cals = []
+    lobesep_cals = []
 
     for c_ind, cal in enumerate(calibration):
         # grab localizations corresponding to this channel
         chan = ColourFilter(fres, currentColour=c_ind)
-
+        chan = MappingFilter(chan)
         # sigma = chan['fitResults_sigma']
         # error_sigma = chan['fitError_sigma']
         theta = chan['fitResults_theta']
         error_theta = chan['fitError_theta']
-        # lobesep = chan['fitResults_lobesep']
-        # error_lobesep = chan['fitError_lobesep']
+        lobesep = chan['fitResults_lobesep']
+        error_lobesep = chan['fitError_lobesep']
 
 
         zdat = np.array(cal['z'])
@@ -225,10 +225,13 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
 
         # sig_cal = LSQUnivariateSpline(z_valid, np.array(cal['sigma'])[z_valid_mask], knots, ext='const')(z_v)
         # sig_cals.append(sig_cal)
-        theta_cal = LSQUnivariateSpline(z_valid, np.array(cal['theta'])[z_valid_mask], knots, ext='const')(z_v)
+        # make sure we don't have a pi jump in the middle of our spline!
+        # wrapped_theta_cal = wrap_angle(np.array(cal['theta'])[z_valid_mask])
+        unwrapped_theta_cal = np.unwrap(np.asarray(cal['theta'])[z_valid_mask], np.pi/2, period=np.pi)
+        theta_cal = LSQUnivariateSpline(z_valid, unwrapped_theta_cal, knots, ext='const')(z_v)
         theta_cals.append(theta_cal)
-        # lobesep_cal = LSQUnivariateSpline(z_valid, np.array(cal['lobesep'])[z_valid_mask], knots, ext='const')(z_v)
-        # lobesep_cals.append(lobesep_cal)
+        lobesep_cal = LSQUnivariateSpline(z_valid, np.array(cal['lobesep'])[z_valid_mask], knots, ext='const')(z_v)
+        lobesep_cals.append(lobesep_cal)
 
     # sig_cal = np.array(sig_cal)
     # theta_cal = np.array(theta_cal)
@@ -245,22 +248,27 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         error_z_out = np.empty_like(theta)
         for ind in range(len(theta)):
             # sigma_residual = np.abs(sigma[ind] - sig_cal)  # [nm]
+            # theta_residual = np.sin(theta[ind] - theta_cal)
+            # use sin in the residual calc to handle wrapping
             theta_residual = np.sin(theta[ind] - theta_cal)  # [rad., under small angle approximation]
-            # lobesep_residual = np.abs(lobesep[ind] - lobesep_cal)  # [nm]
+            lobesep_residual = lobesep[ind] - lobesep_cal  # [nm]
             
             # sigma_normed = sigma_residual ** 2 / error_sigma[ind] ** 2
-            theta_normed = theta_residual ** 2 / error_theta[ind] ** 2
-            # lobesep_normed = lobesep_residual ** 2 / error_lobesep[ind] ** 2
+            # theta_normed = theta_residual ** 2 / error_theta[ind] ** 2
+            theta_normed = theta_residual ** 2
+            lobesep_normed = lobesep_residual ** 2
+            # # lobesep_normed = lobesep_residual ** 2 / error_lobesep[ind] ** 2
 
-            min_loc = np.argmin(np.stack([
-                # sigma_normed, 
-                theta_normed, 
-                # lobesep_normed
-            ], axis=0).sum(axis=0))
+            # min_loc = np.argmin(np.stack([
+            #     # sigma_normed, 
+            #     theta_normed, 
+            #     lobesep_normed
+            # ], axis=0).sum(axis=0))
+            min_loc = np.argmin(theta_normed)
 
             z_out[ind] = z_v[min_loc]
             error_z_out[ind] = 1  # FIXME
-        chan = MappingFilter(chan)
+        
         chan.addColumn('dh_z', z_out)
         chan.addColumn('dh_z_lookup_error', error_z_out)            
 
@@ -276,7 +284,7 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         return dh_loc, Plot(lambda: plot_dh_z_lookup([{
             'theta': theta_cals[c_ind],
             # 'sigma': sig_cals[c_ind],
-            # 'lobesep': lobesep_cals[c_ind],
+            'lobesep': lobesep_cals[c_ind],
             'z_v': z_v
         } for c_ind in range(len(calibration))], dh_loc))
     # {'outputTable' : out,
@@ -290,7 +298,7 @@ def plot_dh_z_lookup(calibration_splines, dh_loc):
     from matplotlib import pyplot as plt
     from PYME.IO.tabular import ColourFilter
     fig = plt.figure()
-    plt.subplots(3, 1)
+    # plt.subplots(2, 1)
 
     for c_ind, cal in enumerate(calibration_splines):
         # grab localizations corresponding to this channel
@@ -300,13 +308,13 @@ def plot_dh_z_lookup(calibration_splines, dh_loc):
         # error_sigma = chan['fitError_sigma']
         theta = chan['fitResults_theta']
         error_theta = chan['fitError_theta']
-        # lobesep = chan['fitResults_lobesep']
-        # error_lobesep = chan['fitError_lobesep']
+        lobesep = chan['fitResults_lobesep']
+        error_lobesep = chan['fitError_lobesep']
         z_out = chan['dh_z']
         z_v = cal['z_v']
 
-        # plt.subplot(211)
-        plt.figure()
+        plt.subplot(211)
+        # plt.figure()
         plt.plot(z_v, cal['theta'], ':', label='Splined Cal.')
         plt.errorbar(z_out, theta, error_theta, linestyle='')
 
@@ -314,11 +322,11 @@ def plot_dh_z_lookup(calibration_splines, dh_loc):
         # plt.plot(z_v, cal['sigma'], ':', label='Splined Cal.')
         # plt.errorbar(z_out, sigma, error_sigma, linestyle='')
 
-        # plt.subplot(212)
-        # plt.plot(z_v, cal['lobesep'], ':', label='Splined Cal.')
-        # plt.errorbar(z_out, lobesep, error_lobesep, linestyle='')
+        plt.subplot(212)
+        plt.plot(z_v, cal['lobesep'], ':', label='Splined Cal.')
+        plt.errorbar(z_out, lobesep, error_lobesep, linestyle='')
     
-    # plt.subplot(211)
+    plt.subplot(211)
     plt.ylabel('Theta [rad]')
     plt.xlabel('Z [nm]')
     plt.legend()
@@ -328,10 +336,10 @@ def plot_dh_z_lookup(calibration_splines, dh_loc):
     # plt.xlabel('Z [nm]')
     # plt.legend()
     
-    # plt.subplot(212)
-    # plt.ylabel('Lobe Separation [nm]')
-    # plt.xlabel('Z [nm]')
-    # plt.legend()
+    plt.subplot(212)
+    plt.ylabel('Lobe Separation [nm]')
+    plt.xlabel('Z [nm]')
+    plt.legend()
 
     return fig
 
