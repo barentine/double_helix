@@ -3,187 +3,94 @@ import numpy as np
 from scipy.interpolate import LSQUnivariateSpline
 
 def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
-    #TODO - move all non-GUI logic for this out of this file?
+    """Generate Z vs theta calibration information from an PSF image stack
+
+    Parameters
+    ----------
+    image : PYME.IO.image.ImageStack
+       image of single, extracted PSF, with even z spacing between slices. If
+       one is working with imagestacks at uneven Z or with multiple frames per
+       step, one should first average by z step, and then resample the PSF stack
+    fit_module : str
+        FitFactory to use when fitting each frame. At the moment, only supports
+        DoubleHelix_Theta
+    roi_half_size : int, optional
+        half size of fitting ROI, by default 11 which results in 11 * 2 + 1 = 23
+        pixel ROI.
+
+    Returns
+    -------
+    results
+        list of double helix calibration dictionaries, one per color channel.
+    """
     from PYME.recipes.measurement import FitPoints
-    # from PYME.Analysis.PSFEst import extractImages
-
-
-    # from PYME.IO.FileUtils import nameUtils
-    # import matplotlib.pyplot as plt
-    # import matplotlib.cm
-    # import json
-    # query user for type of calibration
-    # NB - GPU fit is not enabled here because it exits on number of iterations, which is not necessarily convergence for very bright beads!
-    # ftypes = ['BeadConvolvedAstigGaussFit', 'AstigGaussFitFR']  # , 'AstigGaussGPUFitFR']
-    # fitType_dlg = wx.SingleChoiceDialog(self.dsviewer, 'Fit-type selection', 'Fit-type selection', ftypes)
-    # fitType_dlg.ShowModal()
-    # fitMod = ftypes[fitType_dlg.GetSelection()]
-
-    # if (fitMod == 'BeadConvolvedAstigGaussFit') and ('Bead.Diameter' not in self.image.mdh.keys()):
-    #     beadDiam_dlg = wx.NumberEntryDialog(None, 'Bead diameter in nm', 'diameter [nm]', 'diameter [nm]', 100, 1, 9e9)
-    #     beadDiam_dlg.ShowModal()
-    #     beadDiam = float(beadDiam_dlg.GetValue())
-    #     # store this in metadata
-    #     self.image.mdh['Analysis.Bead.Diameter'] = beadDiam
-
-
-
     # At the moment, this z spacing to be even along the PSF.
     # one should first average by z, and then resample PSF stack, then finally
     # run this calibration. 
     vs_x_nm = image.voxelsize_nm.x
     vs_y_nm = image.voxelsize_nm.y
-    z_step_nm = image.voxelsize_nm.z
+    # z_step_nm = image.voxelsize_nm.z
     n_steps = image.data_xyztc.shape[2]
     obj_positions = {}
 
     obj_positions['x'] = vs_x_nm * 0.5 * image.data_xyztc.shape[0] * np.ones(n_steps)
     obj_positions['y'] = vs_y_nm * 0.5 * image.data_xyztc.shape[1] * np.ones(n_steps)
     obj_positions['t'] = np.arange(image.data.shape[2])
-    z = np.arange(image.data_xyztc.shape[2]) * image.mdh['voxelsize.z'] * 1.e3
+    z = np.arange(image.data_xyztc.shape[2]) * image.mdh['voxelsize.z'] * 1.e3  # [um -> nm]
     obj_positions['z'] = z - z.mean()
 
     results = []
 
     for chan_ind in range(image.data_xyztc.shape[3]):
-        # get z centers
-        # dx, dy, dz = extractImages.getIntCenter(image.data_xyztc[:, :, :, chan_ind])
-
         res = FitPoints(roiHalfSize=roi_half_size,
                         fitModule=fit_module, 
                         channel=chan_ind).apply_simple(
                                             inputImage=image, 
                                             inputPositions=obj_positions,
                                             )
-
-        # dsigma = abs(res['fitResults_sigmax']) - abs(res['fitResults_sigmay'])
-        # valid = ((res['fitError_sigmax'] > 0) * (res['fitError_sigmax'] < 50)* (res['fitError_sigmay'] < 50)*(res['fitResults_A'] > 0) > 0)
-        print(res.keys())
+        
         results.append({
                 'theta': res['fitResults_theta'].tolist(),
                 'lobesep': res['fitResults_lobesep'].tolist(),
                 'sigma': res['fitResults_sigma'].tolist(),
                 'z': obj_positions['z'].tolist(),
             })
-        # results.append({'sigmax': abs(res['fitResults_sigmax'][valid]).tolist(),'error_sigmax': abs(res['fitError_sigmax'][valid]).tolist(),
-                        # 'sigmay': abs(res['fitResults_sigmay'][valid]).tolist(), 'error_sigmay': abs(res['fitError_sigmay'][valid]).tolist(),
-                        # 'dsigma': dsigma[valid].tolist(), 'z': obj_positions['z'][valid].tolist(), 'zCenter': obj_positions['z'][int(dz)]})
-
-#generate new tab to show results
-    # use_web_view = False
-    # if not '_astig_view' in dir(self):
-    #     try:
-    #         self._astig_view= wx.html2.WebView.New(self.dsviewer)
-    #         self.dsviewer.AddPage(self._astig_view, True, 'Astigmatic calibration')
-
-    #     except NotImplementedError:
-    #         use_web_view = False
-
-    # find reasonable z range for each channel, inject 'zRange' into the results. FIXME - injection is bad
-    # results = astigTools.find_and_add_zRange(results)
-
-    #do plotting
-    # plt.ioff()
-    # f = plt.figure(figsize=(10, 4))
-
-    # colors = iter(matplotlib.cm.Dark2(np.linspace(0, 1, 2*self.image.data.shape[3])))
-    # plt.subplot(121)
-    # for i, res in enumerate(results):
-    #     nextColor1 = next(colors)
-    #     nextColor2 = next(colors)
-    #     lbz = np.absolute(res['z'] - res['zRange'][0]).argmin()
-    #     ubz = np.absolute(res['z'] - res['zRange'][1]).argmin()
-    #     plt.plot(res['z'], res['sigmax'], ':', c=nextColor1)  # , label='x - %d' % i)
-    #     plt.plot(res['z'], res['sigmay'], ':', c=nextColor2)  # , label='y - %d' % i)
-    #     plt.plot(res['z'][lbz:ubz], res['sigmax'][lbz:ubz], label='x - %d' % i, c=nextColor1)
-    #     plt.plot(res['z'][lbz:ubz], res['sigmay'][lbz:ubz], label='y - %d' % i, c=nextColor2)
-
-    # #plt.ylim(-200, 400)
-    # plt.grid()
-    # plt.xlabel('z position [nm]')
-    # plt.ylabel('Sigma [nm]')
-    # plt.legend()
-
-    # plt.subplot(122)
-    # colors = iter(matplotlib.cm.Dark2(np.linspace(0, 1, self.image.data.shape[3])))
-    # for i, res in enumerate(results):
-    #     nextColor = next(colors)
-    #     lbz = np.absolute(res['z'] - res['zRange'][0]).argmin()
-    #     ubz = np.absolute(res['z'] - res['zRange'][1]).argmin()
-    #     plt.plot(res['z'], res['dsigma'], ':', lw=2, c=nextColor)  # , label='Chan %d' % i)
-    #     plt.plot(res['z'][lbz:ubz], res['dsigma'][lbz:ubz], lw=2, label='Chan %d' % i, c=nextColor)
-    # plt.grid()
-    # plt.xlabel('z position [nm]')
-    # plt.ylabel('Sigma x - Sigma y [nm]')
-    # plt.legend()
-
-    # plt.tight_layout()
-
-    # plt.ion()
-    # #dat = {'z' : objPositions['z'][valid].tolist(), 'sigmax' : res['fitResults_sigmax'][valid].tolist(),
-    # #                   'sigmay' : res['fitResults_sigmay'][valid].tolist(), 'dsigma' : dsigma[valid].tolist()}
-
-
-    # if use_web_view:
-    #     fig = mpld3.fig_to_html(f)
-    #     data = json.dumps(results)
-
-    #     template = env.get_template('astigCal.html')
-    #     html = template.render(astigplot=fig, data=data)
-    #     #print html
-    #     self._astig_view.SetPage(html, '')
-    # else:
-    #     plt.show()
-
-    # fdialog = wx.FileDialog(None, 'Save Astigmatism Calibration as ...',
-    #     wildcard='Astigmatism Map (*.am)|*.am', style=wx.FD_SAVE, defaultDir=nameUtils.genShiftFieldDirectoryPath())  #, defaultFile=defFile)
-    # succ = fdialog.ShowModal()
-    # if (succ == wx.ID_OK):
-    #     fpath = fdialog.GetPath()
-
-    #     fid = open(fpath, 'w', encoding='utf8')
-    #     json.dump(results, fid, indent=4, sort_keys=True)
-    #     fid.close()
-    #     if use_web_view:  # save the html too
-    #         import os
-    #         fpath = os.path.splitext(fpath)[0] + '.html'
-    #         with open(fpath, 'wb') as fid:
-    #             fid.write(html.encode('utf-8'))
 
     return results
 
 def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
     """
-    Generates a look-up table of sorts for z based on sigma x/y fit results and calibration information. If a molecule
-    appears on multiple planes, sigma values from both planes will be used in the look up.
+    Generates a look-up table for z based on theta fit results and calibration 
+    information.
 
     Parameters
     ----------
     fres : dict-like
         Contains fit results (localizations) to be mapped in z
-    astig_calibrations : list
-        Each element is a dictionary corresponding to a multiview channel, which contains the x and y PSF widths at
+    calibration : list
+        Each element is a dictionary corresponding to a color channel, and 
+        contains the fitted double helix orientation (theta [rad.]) for 
         various z-positions
     rough_knot_spacing : Float
-        Smoothing is applied to the sigmax/y look-up curves by fitting a cubic spline with knots spaced roughly at
-        intervals of rough_knot_spacing (in nanometers). There is potentially rounding within the step-size of the
-        astigmatism calibration to make knot placing more convenient.
+        Smoothing is applied to the theta look-up curves by fitting a cubic 
+        spline with knots spaced roughly at intervals of rough_knot_spacing (in 
+        nanometers). There is potentially rounding within the step-size of the
+        calibration to make knot placing more convenient.
     plot : bool
         Flag to toggle plotting
 
     Returns
     -------
-    z : ndarray
-        astigmatic Z-position of each localization in fres
-    zerr : ndarray
-        discrepancies between sigma values and the PSF calibration curves
+    dh_loc : PYME.IO.tabular.MappingFilter
+        fit reuslts with 'dz_z' and 'dh_z_lookup_error' keys for double-helix
+        z [nm] and associated uncertianty [nm]
+    dh_z_lookup_plot : PYME.recipes.graphic.Plot
+        PYME recipe plot object for viewing / saving graph of used calibration
+        with resulting z localizations overlayed.
 
     """
     from PYME.IO.tabular import ColourFilter, MappingFilter, ConcatenateFilter
     from PYME.recipes.graphing import Plot
-    # fres = pipeline.selectedDataSource.resultsSource.fitResults
-    # numMolecules = len(fres['x']) # there is no guarantee that fitResults_x0 will be present - change to x
-    # n_chan = len(calibration)
 
     # find overall min and max z values
     z_min = 0
@@ -198,7 +105,7 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
     # store for plotting later
     theta_cals = []
     # sig_cals = []
-    lobesep_cals = []
+    # lobesep_cals = []
 
     for c_ind, cal in enumerate(calibration):
         # grab localizations corresponding to this channel
@@ -208,8 +115,8 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         # error_sigma = chan['fitError_sigma']
         theta = chan['fitResults_theta']
         error_theta = chan['fitError_theta']
-        lobesep = chan['fitResults_lobesep']
-        error_lobesep = chan['fitError_lobesep']
+        # lobesep = chan['fitResults_lobesep']
+        # error_lobesep = chan['fitError_lobesep']
 
 
         zdat = np.array(cal['z'])
@@ -226,38 +133,24 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         # sig_cal = LSQUnivariateSpline(z_valid, np.array(cal['sigma'])[z_valid_mask], knots, ext='const')(z_v)
         # sig_cals.append(sig_cal)
         # make sure we don't have a pi jump in the middle of our spline!
-        # wrapped_theta_cal = wrap_angle(np.array(cal['theta'])[z_valid_mask])
         unwrapped_theta_cal = np.unwrap(np.asarray(cal['theta'])[z_valid_mask], np.pi/2, period=np.pi)
         theta_cal = LSQUnivariateSpline(z_valid, unwrapped_theta_cal, knots, ext='const')(z_v)
         theta_cals.append(theta_cal)
-        lobesep_cal = LSQUnivariateSpline(z_valid, np.array(cal['lobesep'])[z_valid_mask], knots, ext='const')(z_v)
-        lobesep_cals.append(lobesep_cal)
+        # lobesep_cal = LSQUnivariateSpline(z_valid, np.array(cal['lobesep'])[z_valid_mask], knots, ext='const')(z_v)
+        # lobesep_cals.append(lobesep_cal)
 
-    # sig_cal = np.array(sig_cal)
-    # theta_cal = np.array(theta_cal)
-    # lobesep_cal = np.array(lobesep_cal)
-
-    # #allocate arrays for the estimated z positions and their errors
-    # z = np.zeros(numMolecules)
-    # zerr = 1e4 * np.ones(numMolecules)
-    #
-    # failures = 0
-    # chans = np.arange(len(calibration))
-    # for chan in range(len(cali))
         z_out = np.empty_like(theta)
         error_z_out = np.empty_like(theta)
+        # loop over each localization and find it's Z position
         for ind in range(len(theta)):
             # sigma_residual = np.abs(sigma[ind] - sig_cal)  # [nm]
-            # theta_residual = np.sin(theta[ind] - theta_cal)
+
             # use sin in the residual calc to handle wrapping
             theta_residual = np.sin(theta[ind] - theta_cal)  # [rad., under small angle approximation]
-            lobesep_residual = lobesep[ind] - lobesep_cal  # [nm]
+            # lobesep_residual = lobesep[ind] - lobesep_cal  # [nm]
             
-            # sigma_normed = sigma_residual ** 2 / error_sigma[ind] ** 2
-            # theta_normed = theta_residual ** 2 / error_theta[ind] ** 2
             theta_normed = theta_residual ** 2
-            lobesep_normed = lobesep_residual ** 2
-            # # lobesep_normed = lobesep_residual ** 2 / error_lobesep[ind] ** 2
+            # lobesep_normed = lobesep_residual ** 2
 
             # min_loc = np.argmin(np.stack([
             #     # sigma_normed, 
@@ -284,15 +177,9 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         return dh_loc, Plot(lambda: plot_dh_z_lookup([{
             'theta': theta_cals[c_ind],
             # 'sigma': sig_cals[c_ind],
-            'lobesep': lobesep_cals[c_ind],
+            # 'lobesep': lobesep_cals[c_ind],
             'z_v': z_v
         } for c_ind in range(len(calibration))], dh_loc))
-    # {'outputTable' : out,
-    #             'outputPlot' : Plot(lambda: edtColoc.plot_image_dist_coloc_figure(bins, enrichment, enrichment_m,
-    #                                                                                     enclosed, enclosed_m,
-    #                                                                                     enclosed_area,
-    #                                                                                     nameA=inputMask.names[0],
-    #                                                                                     nameB=inputImage.names[0]))}
 
 def plot_dh_z_lookup(calibration_splines, dh_loc):
     from matplotlib import pyplot as plt
@@ -308,12 +195,12 @@ def plot_dh_z_lookup(calibration_splines, dh_loc):
         # error_sigma = chan['fitError_sigma']
         theta = chan['fitResults_theta']
         error_theta = chan['fitError_theta']
-        lobesep = chan['fitResults_lobesep']
-        error_lobesep = chan['fitError_lobesep']
+        # lobesep = chan['fitResults_lobesep']
+        # error_lobesep = chan['fitError_lobesep']
         z_out = chan['dh_z']
         z_v = cal['z_v']
 
-        plt.subplot(211)
+        # plt.subplot(211)
         # plt.figure()
         plt.plot(z_v, cal['theta'], ':', label='Splined Cal.')
         plt.errorbar(z_out, theta, error_theta, linestyle='')
@@ -322,11 +209,11 @@ def plot_dh_z_lookup(calibration_splines, dh_loc):
         # plt.plot(z_v, cal['sigma'], ':', label='Splined Cal.')
         # plt.errorbar(z_out, sigma, error_sigma, linestyle='')
 
-        plt.subplot(212)
-        plt.plot(z_v, cal['lobesep'], ':', label='Splined Cal.')
-        plt.errorbar(z_out, lobesep, error_lobesep, linestyle='')
+        # plt.subplot(212)
+        # plt.plot(z_v, cal['lobesep'], ':', label='Splined Cal.')
+        # plt.errorbar(z_out, lobesep, error_lobesep, linestyle='')
     
-    plt.subplot(211)
+    # plt.subplot(211)
     plt.ylabel('Theta [rad]')
     plt.xlabel('Z [nm]')
     plt.legend()
@@ -336,82 +223,9 @@ def plot_dh_z_lookup(calibration_splines, dh_loc):
     # plt.xlabel('Z [nm]')
     # plt.legend()
     
-    plt.subplot(212)
-    plt.ylabel('Lobe Separation [nm]')
-    plt.xlabel('Z [nm]')
-    plt.legend()
+    # plt.subplot(212)
+    # plt.ylabel('Lobe Separation [nm]')
+    # plt.xlabel('Z [nm]')
+    # plt.legend()
 
     return fig
-
-    #extract our sigmas and their errors
-    #doing this here means we only do the string operations and look-ups once, rather than once per molecule
-    s_xs = np.abs(np.array([fres['sigmax%i' % ci] for ci in chans]))
-    s_ys = np.abs(np.array([fres['sigmay%i' % ci] for ci in chans]))
-    esxs = [fres['error_sigmax%i' % ci] for ci in chans]
-    esys = [fres['error_sigmay%i' % ci] for ci in chans]
-    wXs = np.array([1. / (esx_i*esx_i) for esx_i in esxs])
-    wYs = np.array([1. / (esy_i*esy_i) for esy_i in esys])
-
-    if plot:
-        from matplotlib import pyplot as plt
-
-        plt.figure()
-        plt.subplot(211)
-        for astig_cal, interp_sigx, col in zip(calibration, sigCalX, ['r', 'g', 'b', 'c']):
-            plt.plot(astig_cal['z'], astig_cal['sigmax'], ':', c=col)
-            plt.plot(zVal, interp_sigx, c=col)
-
-        plt.subplot(212)
-        for astig_cal, interp_sigy, col in zip(calibration, sigCalY, ['r', 'g', 'b', 'c']):
-            plt.plot(astig_cal['z'], astig_cal['sigmay'], ':', c=col)
-            plt.plot(zVal, interp_sigy, c=col)
-
-    # _lenz_chunked = np.floor(len(zVal)) - 1
-    # sigCalX_chunked = np.ascontiguousarray(sigCalX[:,::100])
-    # sigCalY_chunked = np.ascontiguousarray(sigCalY[:,::100])
-    #
-    # for i in range(numMolecules):
-    #     #TODO - can we avoid this loop?
-    #     wX = wXs[:, i]
-    #     wY = wYs[:, i]
-    #     sx = sxs[:, i]
-    #     sy = sys[:, i]
-    #
-    #     wSum = (wX + wY).sum()
-    #
-    #     #estimate the position in two steps - coarse then fine
-    #
-    #     #coarse step:
-    #     errX = (wX[:,None] * (sx[:, None] - sigCalX_chunked)**2).sum(0)
-    #     errY = (wY[:, None] * (sy[:, None] - sigCalY_chunked)**2).sum(0)
-    #
-    #     err = (errX + errY) / wSum
-    #     loc_coarse = min(max(np.argmin(err), 1), _lenz_chunked)
-    #
-    #     fine_s =  100*(loc_coarse - 1)
-    #     fine_end = 100*(loc_coarse + 1)
-    #
-    #     #print loc_coarse, fine_s, fine_end, sigCalX.shape
-    #
-    #     #fine step
-    #     errX = (wX[:, None] * (sx[:, None] - sigCalX[:,fine_s:fine_end]) ** 2).sum(0)
-    #     errY = (wY[:, None] * (sy[:, None] - sigCalY[:,fine_s:fine_end]) ** 2).sum(0)
-    #
-    #     err = (errX + errY) / wSum
-    #     minLoc = np.argmin(err)
-    #
-    #     z[i] = -zVal[fine_s + minLoc]
-    #     zerr[i] = np.sqrt(err[minLoc])
-
-    zi, ze = astiglookup.astig_lookup(sigCalX.T.astype('f'), sigCalY.T.astype('f'), s_xs.T.astype('f'),
-                                      s_ys.T.astype('f'), wXs.T.astype('f'), wYs.T.astype('f'))
-
-    print('used c lookup')
-
-    z = -zVal[zi]
-    zerr = np.sqrt(ze)
-
-
-    #print('%i localizations did not have sigmas in acceptable range/planes (out of %i)' % (failures, numMolecules))
-
-    return z, zerr
