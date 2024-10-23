@@ -31,6 +31,9 @@ class DHCalibrator(Plugin):
         import os
         from double_helix.z_mapping import calibrate_double_helix_psf
         from double_helix.z_range_dialog import ZRangeDialog
+        from double_helix.z_mapping import OptimalSigmabyFrame
+        from double_helix.z_mapping import StrengthVsZ
+        from double_helix.z_mapping import StrengthVsSigma
         # query user for type of calibration
         # ftypes = ['Double Helix Theta', 'Double Helix Separate Gaussians']  # , 'AstigGaussGPUFitFR']
         # fit_type_dlg = wx.SingleChoiceDialog(self.dsviewer, 'Fit-type selection', 'Fit-type selection', ftypes)
@@ -39,6 +42,62 @@ class DHCalibrator(Plugin):
         fit_mod = 'DoubleHelixFit_Theta'
 
         results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod)
+
+        # determine optimal filter sigma for middle slice of z stack
+        # initial sigma search from 0.2 - 20 px in 0.2 px increments 
+        dh_stack=numpy.squeeze(self.dsviewer.image.data_xytc[:,:,:,0]) 
+        mid_slice = int(dh_stack.shape[2]/2)
+        sigmaUB = 20 # filter sigma upperbound for filter sigma sweep for each slice
+        initial_sigs = numpy.array(range(20,sigmaUB*100,20), dtype=float)/100
+        midSlice_filterSigma, midSlice_strengths = StrengthVsSigma(initial_sigs, dh_stack[:,:,mid_slice])
+        
+        
+        # determine optimal detection filter sigma for each slice of z stack
+        # for each slice of z stack, run detection on psf for each sigma in sigs
+        # save filter sigma producing highest detector response for that slice
+        # sigma values for search range from +/- 3 px from optimal sigma for middle slice, 0.2 px increments
+        sigs = numpy.array(range((midSlice_filterSigma-3)*100,(midSlice_filterSigma+3)*100,20), dtype=float)/100
+        optimalSigs, maxStrengths, maxXforOptSigma, maxYforOptSigma = OptimalSigmabyFrame(dh_stack, sigs)
+        
+        # determine how well filter sigma optimized for middle slice detects across PSFs across z stack
+        # for each slice of z stack, run detection with filter sigma optimal for middle slice
+        #   (normalization factor computed with middle slice lobesep and lobe sigma from calibration)
+        # plot detection strength at each slice and detection strength normalized for dh amplitude at each slice
+        px_size_nm = self.dsviewer.image.mdh['voxelsize.x']*1000
+        mid_slice_filter_sigma = optimalSigs[mid_slice]
+        mid_slice_lobesep_px = results[0]['lobesep'][mid_slice]/px_size_nm
+        mid_slice_sigma_px = results[0]['sigma'][mid_slice]/px_size_nm
+        strengths, dhAmplitudes, maxX, maxY = StrengthVsZ(dh_stack, sigma=mid_slice_filter_sigma, l=mid_slice_lobesep_px, s=mid_slice_sigma_px)
+
+        fig = plt.figure(figsize=(12, 10))
+        gspec = fig.add_gridspec(nrows=6, ncols=2)
+        ax1 = fig.add_subplot(gspec[0:2, 0])
+        ax2 = fig.add_subplot(gspec[3:5, 0])
+        ax3 = fig.add_subplot(gspec[0:1, 1])
+        ax4 = fig.add_subplot(gspec[2:3, 1])
+        ax5 = fig.add_subplot(gspec[4:5, 1])
+
+        ax1.plot(initial_sigs, midSlice_strengths)
+        ax1.set_xlabel("Filter Sigma (px)")
+        ax1.set_ylabel("Raw Detection Strength")
+        ax1.title.set_text('Middle Slice Detection Strength vs Filter Sigma')
+        
+        ax2.plot(results[0]['z'], optimalSigs)
+        ax2.set_xlabel("z (nm)")
+        ax2.set_ylabel("Optimal Filter Sigma")
+        ax2.title.set_text('Optimal Filter Sigma vs Z')
+
+        ax3.plot(results[0]['z'], dhAmplitudes)
+        ax3.set_xlabel("z (nm)")
+        ax3.set_ylabel("DH Amplitude")
+            
+        ax4.plot(results[0]['z'], strengths)
+        ax4.set_xlabel("z (nm)")
+        ax4.set_ylabel("Max Strength")
+            
+        ax5.plot(results[0]['z'], strengths/dhAmplitudes)
+        ax5.set_xlabel("z (nm)")
+        ax5.set_ylabel("Max Strength/DH Amplitude")
 
         # do plotting
         plt.ioff()
