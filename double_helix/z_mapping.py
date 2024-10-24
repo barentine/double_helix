@@ -1,6 +1,9 @@
 
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy import ndimage
 from scipy.interpolate import LSQUnivariateSpline
+import math
 
 def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
     """Generate Z vs theta calibration information from an PSF image stack
@@ -229,3 +232,184 @@ def plot_dh_z_lookup(calibration_splines, dh_loc):
     # plt.legend()
 
     return fig
+
+
+def computeStrengthMap(sigma, image):
+
+    """Compute second derivative of Gaussian steerable filter strength map
+
+    Parameters
+    ----------
+    image : array
+       single image to be filtered
+    sigma: float
+        sigma of the Gaussian used to generate 7 basis filters
+
+    Returns
+    -------
+    strengthMap
+        filtered image, not noramlized 
+    """
+    
+    from double_helix.FitFactories.DoubleHelixFit_Theta_20240910 import g2a, g2b, g2c, h2a, h2b, h2c, h2d
+
+    roiHalfSize = 10 # [pixels]
+
+    xx = np.mgrid[(-roiHalfSize):(roiHalfSize + 1)]
+    yy = np.mgrid[(-roiHalfSize):(roiHalfSize + 1)]
+
+
+    X, Y = xx[:, None], yy[None, :]
+
+    f1 = g2a(Y, X, sigma)
+    f2 = g2b(Y, X, sigma)
+    f3 = g2c(Y, X, sigma)
+
+    g2a_xy = ndimage.convolve(image, f1)
+    g2b_xy = ndimage.convolve(image, f2)
+    g2c_xy = ndimage.convolve(image, f3)
+    
+    fha = h2a(Y, X, sigma)
+    fhb = h2b(Y, X, sigma)
+    fhc = h2c(Y, X, sigma)
+    fhd = h2d(Y, X, sigma)
+
+    h2a_xy = ndimage.convolve(image, fha)
+    h2b_xy = ndimage.convolve(image, fhb)
+    h2c_xy = ndimage.convolve(image, fhc)
+    h2d_xy = ndimage.convolve(image, fhd)
+
+    c_2= 0.5 * (g2a_xy**2 - g2c_xy**2) \
+                + 0.46875*(h2a_xy**2 - h2d_xy**2) \
+                + 0.28125*(h2b_xy**2 - h2c_xy**2) \
+                + 0.1875 * (h2a_xy*h2c_xy - h2b_xy * h2d_xy)
+    c_3 = - g2a_xy*g2b_xy - g2b_xy * g2c_xy \
+                - 0.9375 * (h2c_xy * h2d_xy + h2a_xy * h2b_xy) \
+                - 1.6875 * h2b_xy * h2c_xy - 0.1875 * h2a_xy * h2d_xy
+
+    
+    strengthMap = np.sqrt(c_2 ** 2 + c_3 ** 2)
+    
+    return strengthMap
+
+def StrengthVsSigma(sigmas, image):
+        
+    strengths = np.asarray(np.zeros(sigmas.size), dtype=float)
+    
+    for i in list(range(0,sigmas.size)):
+    
+        strengthMap = computeStrengthMap(sigmas[i], image)
+        strengths[i] = np.max(strengthMap)
+     
+    
+    optSigma = int(sigmas[np.unravel_index(np.argmax(strengths), strengths.shape)[0]])
+    
+    return optSigma, strengths
+
+def OptimalSigmabyFrame(PSFStack, sigmas):
+    
+    """Compute second derivative of Gaussian steerable filter strength map
+
+    Parameters
+    ----------
+    PSFStack : PYME.IO.image.ImageStack
+       image of single, extracted PSF, with even z spacing between slices. If
+       one is working with imagestacks at uneven Z or with multiple frames per
+       step, one should first average by z step, and then resample the PSF stack
+       single image to be filtered
+    sigmas : array
+        array of filter sigmas to test to find optimal filter sigma
+
+    Returns
+    -------
+    optSigmas
+        array of optimal sigma value for each step in z stack
+    
+    strengths
+        strength of optimized filter response at each step of z stack
+
+    maxX, maxY
+        arrays containing the x and y coordinates respectively that correspond to the position 
+        of the maximized filter response for each step in z stack
+
+    """
+
+    optSigmas = np.asarray(np.zeros(PSFStack.shape[2]), dtype=float)
+    maxX = np.asarray(np.zeros(PSFStack.shape[2]), dtype=float)
+    maxY = np.asarray(np.zeros(PSFStack.shape[2]), dtype=float)
+    
+    for j in list(range(0,PSFStack.shape[2])):
+    
+        strengths = np.asarray(np.zeros(sigmas.size), dtype=float)
+
+        X = np.asarray(np.zeros(sigmas.size), dtype=float)
+        Y = np.asarray(np.zeros(sigmas.size), dtype=float)
+        
+        for i in list(range(0,sigmas.size)):
+
+            
+            strengthMap = computeStrengthMap(sigmas[i], PSFStack[:,:,j])
+            strengths[i] = np.max(strengthMap)
+            X[i] = np.unravel_index(np.argmax(strengthMap), strengthMap.shape)[1]
+            Y[i] = np.unravel_index(np.argmax(strengthMap), strengthMap.shape)[0]
+
+        optSigmas[j] = sigmas[np.unravel_index(np.argmax(strengths), strengths.shape)[0]]
+        maxX[j] = X[np.unravel_index(np.argmax(strengths), strengths.shape)[0]]
+        maxY[j] = Y[np.unravel_index(np.argmax(strengths), strengths.shape)[0]]
+        
+    
+    return optSigmas, strengths, maxX, maxY
+
+
+def StrengthVsZ(PSFStack, sigma, l, s):
+    
+    """Compute second derivative of Gaussian steerable filter strength map
+
+    Parameters
+    ----------
+    PSFStack : PYME.IO.image.ImageStack
+       image of single, extracted PSF, with even z spacing between slices. If
+       one is working with imagestacks at uneven Z or with multiple frames per
+       step, one should first average by z step, and then resample the PSF stack
+       single image to be filtered
+    sigma : array
+        sigma of Gaussian used to generate 7 basis filters
+    l : float
+        lobe separation (px) of DHPSF to use for computing normalization factor
+    s : float
+        sigma (px) of DHPSF lobe to use for computing normalization factor
+
+    Returns
+    -------
+    
+    strengths
+        normalized strength of filter response at each step of z stack
+    
+    dhAmplitudes
+        max value of DHPSF in each z slice
+
+    maxX, maxY
+        arrays containing the x and y coordinates respectively that correspond to the position 
+        of the maximized filter response for each step in z stack
+
+    """
+    num_frames = PSFStack.shape[2]
+
+    A=1
+    S = lambda x: pow(2.718281828459045,3)*pow(3.141592653589793,3)*pow(pow(A,4)*pow(s,8)*pow(x,16)*pow((pow(s,2)+pow(x,2)),-6)*pow((-1*pow(2.718281828459045,-0.25*pow((pow(s,2)+pow(x,2)),-1))*pow((math.erf(0.5*(-1+l)*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5))+-1*math.erf(0.5*(1+l)*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5))),2)+pow(2.718281828459045,-0.25*pow((1+l),2)*pow((pow(s,2)+pow(x,2)),-1))*pow(math.erf(0.5*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5)),2)*pow((1+l+-1*(-1+l)*pow(2.718281828459045,0.5*l*pow((pow(s,2)+pow(x,2)),-1))),2)),2),0.5)
+    normFactor = S(sigma)
+    
+    strengths = np.asarray(np.zeros(PSFStack.shape[2]), dtype=float)
+    dhAmplitudes = np.asarray(np.zeros(PSFStack.shape[2]), dtype=float)
+    maxX = np.asarray(np.zeros(PSFStack.shape[2]), dtype=float)
+    maxY = np.asarray(np.zeros(PSFStack.shape[2]), dtype=float)
+    
+    for i in list(range(0,PSFStack.shape[2])):
+    
+        strengthMap = computeStrengthMap(sigma, PSFStack[:,:,i])
+        strengths[i] = np.max(np.sqrt(strengthMap/normFactor))
+        dhAmplitudes[i] = np.max(PSFStack[:,:,i])
+        maxX[i] = np.unravel_index(np.argmax(strengthMap), strengthMap.shape)[1]
+        maxY[i] = np.unravel_index(np.argmax(strengthMap), strengthMap.shape)[0]
+
+    return strengths, dhAmplitudes, maxX, maxY
