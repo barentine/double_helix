@@ -27,7 +27,6 @@ import math
 from PYME.localization.FitFactories.fitCommon import fmtSlicesUsed, pack_results
 from PYME.localization.FitFactories import FFBase 
 from PYME.Analysis._fithelpers import FitModelWeighted, FitModelWeightedJac
-from PYME.localization.remFitBuf import fitTask
 
 ##################
 # Model functions
@@ -380,12 +379,10 @@ class DumbellFitFactory(FFBase.FitFactory):
 
         # negative values in bg subtraction lead to detection artefacts so make any negative pixel have value of 0
         bgd[bgd<0] = 0
-        # compute sigma map for image to be filtered
-        sigma_image = np.squeeze(fitTask.calcSigma(self.metadata, self.data.astype('f')))
         
         # Note PYME flips row/col y/x, so feed the detector a Transposed frame to get it 'right'
         # Filter image normalized by sigma map
-        strength_image, angle_image = _dh_detector.filter_frame(bgd.T/sigma_image.T)
+        strength_image, angle_image = _dh_detector.filter_frame((bgd/self.noiseSigma.squeeze()).T)
 
         row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, threshold)
 
