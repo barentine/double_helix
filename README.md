@@ -39,3 +39,5 @@ PYME can facilitate distributed batch analysis of many series, but we will descr
 
 1. Open a set of localized points in `PYMEVis`.
 2. In the `Corrections` menu, click `Double Helix > Map and Filter on DH parameters.
+3. Select the dh_json calibration from above, and if necessary, adjust the target knot spacing. A cubic spline is fitted to the calibration data and used to look-up individual localization's z position. The target knot spacing of that spline is adjustable, within some limits of the spacing of the original calibration - increase the knot spacing if the default setting is too small for your calibration data.
+4. The `z` column of the output datasource will be automatically adjusted to now include the `dh_z` position (added to any `focus` information of individual localizations, potentially with a foreshortening correciotn). Several double-helix specific filters will be automatically added to the pipeline and may need to be adjusted for your use case.
