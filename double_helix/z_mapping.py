@@ -261,7 +261,7 @@ def computeStrengthMap(sigma, image):
         filtered image, not noramlized 
     """
     
-    from double_helix.FitFactories.DoubleHelixFit_Theta_20240910 import g2a, g2b, g2c, h2a, h2b, h2c, h2d
+    from double_helix.DoubleGaussFit import g2a, g2b, g2c, h2a, h2b, h2c, h2d
 
     roiHalfSize = 10 # [pixels]
 
