@@ -39,7 +39,7 @@ class DHCalibrator(Plugin):
         # fit_type_dlg = wx.SingleChoiceDialog(self.dsviewer, 'Fit-type selection', 'Fit-type selection', ftypes)
         # fit_type_dlg.ShowModal()
         # fit_mod = ftypes[fit_type_dlg.GetSelection()]
-        fit_mod = 'DoubleHelixFit_Theta'
+        fit_mod = 'double_helix.DoubleGaussFit'
 
         results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod)
 
