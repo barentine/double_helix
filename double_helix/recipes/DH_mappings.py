@@ -161,7 +161,7 @@ class DetectDoubleHelices(ModuleBase):
                     ci = np.append(ci, [c_ind] * len(row))
         
         detections = DictSource({
-            'row': r, 'col': c, 'angle': theta, 'z_index': zi, 't_index': ti, 'probe': ci,
+            'x': r*im.voxelsize_nm.x, 'y': c*im.voxelsize_nm.y, 'angle': theta, 'z_index': zi, 't': ti, 'probe': ci,
             'z': zi * im.voxelsize_nm.z
         })
         detections.mdh = NestedClassMDHandler(im.mdh)

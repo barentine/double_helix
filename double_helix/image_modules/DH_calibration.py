@@ -24,6 +24,7 @@ class DHCalibrator(Plugin):
         logging.debug('Adding menu items for double-helix PSF calibration')
         dsviewer.AddMenuItem('Processing', 'Calibrate DH PSF', self.OnCalibrate)        
         dsviewer.AddMenuItem('Processing', 'Optimize DH PSF Detection', self.OnOptimizeDetection)
+        dsviewer.AddMenuItem('Processing', 'Test DH PSF Detection', self.OnTestDetection)
 
     def OnCalibrate(self, wx_event=None):
         from PYME.IO.FileUtils import nameUtils
@@ -110,6 +111,41 @@ class DHCalibrator(Plugin):
             self._optimizations.append({'output_plot': namespace[mod.output_plot], 
                                         'output_data': namespace[mod.output_data]})
             namespace[mod.output_plot].show()
+    
+    def OnTestDetection(self, wx_event=None):
+        from PYME.DSView import ViewIm3D
+        from PYME.DSView import overlays
+        from PYME.IO import tabular
+        from double_helix.recipes.DH_mappings import DetectDoubleHelices
+
+        mod = DetectDoubleHelices()
+        if mod.configure_traits(kind='modal'):
+            namespace = {mod.input_image : self.dsviewer.image}
+            mod.execute(namespace)
+
+            #Open the result in a new window. 
+            dsv = ViewIm3D(namespace[mod.output_strength_im], parent=self.dsviewer, glCanvas=self.dsviewer.glCanvas,
+                     title=mod.output_strength_im)
+            
+            # add detections as overlays
+            filt = tabular.MappingFilter(namespace[mod.output_detections])
+
+            dsv._ovl = overlays.PointDisplayOverlay(filter=filt, display_name='Detections')
+            dsv._ovl.pointMode = 'lm'
+            z_mode = 't' if self.dsviewer.image.data_xyztc.shape[2] < self.dsviewer.image.data_xyztc.shape[3] else 'z'
+            dsv._ovl.z_mode = z_mode
+            dsv._ovl.pointSize = mod.fit_roi_half_size * 2 + 1
+            dsv.view.add_overlay(dsv._ovl)
+
+            if not hasattr(self.dsviewer, '_ovl') or not hasattr(self.dsviewer._ovl, 'filter'):
+                self.dsviewer._ovl = overlays.PointDisplayOverlay(filter=filt, display_name='Detections')
+                self.dsviewer._ovl.pointMode = 'lm'
+                self.dsviewer._ovl.z_mode = z_mode
+                self.dsviewer._ovl.pointSize = mod.fit_roi_half_size * 2 + 1
+                self.dsviewer.view.add_overlay(self.dsviewer._ovl)
+            else:
+                self.dsviewer._ovl.filter.setResults(filt)
+
 
 def Plug(dsviewer):
     dsviewer.DH_tools = DHCalibrator(dsviewer)
