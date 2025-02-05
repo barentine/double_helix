@@ -203,7 +203,7 @@ def h2d(x, y, sig):
 
 
 class Detector(object):
-    def __init__(self, roi_half_size, l_initial=900, lobe_sigma_initial=180, filter_sigma=8.0, pxSize=117.4):
+    def __init__(self, roi_half_size, l_initial=900, lobe_sigma_initial=180, filter_sigma=8.0, px_size_nm=117.4):
         """
         Parameters:
         -----------
@@ -217,7 +217,7 @@ class Detector(object):
             initial guess for lobe sigma    
         filter_sigma: float
             sigma for g2 and h2 filters in pixels
-        pxSize: float
+        px_size_nm: float
             pixel size in nm
         
         Notes:
@@ -227,7 +227,7 @@ class Detector(object):
         """
         self.roi_half_size = roi_half_size
         self.filter_sigma = filter_sigma
-        self.pxSize = pxSize
+        self.px_size_nm = px_size_nm
         xx = np.mgrid[(-roi_half_size):(roi_half_size + 1)]
         yy = np.mgrid[(-roi_half_size):(roi_half_size + 1)]
         X, Y = xx[:, None], yy[None, :]
@@ -249,8 +249,8 @@ class Detector(object):
         # compute normalization factor for strength image
         # analytically computed value for max filter response for given dhpsf and filter sigma
         A=1
-        l = l_initial/(self.pxSize)
-        s = lobe_sigma_initial/(self.pxSize)
+        l = l_initial/(self.px_size_nm)
+        s = lobe_sigma_initial/(self.px_size_nm)
         S = lambda x: pow(2.718281828459045,3)*pow(3.141592653589793,3)*pow(pow(A,4)*pow(s,8)*pow(x,16)*pow((pow(s,2)+pow(x,2)),-6)*pow((-1*pow(2.718281828459045,-0.25*pow((pow(s,2)+pow(x,2)),-1))*pow((math.erf(0.5*(-1+l)*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5))+-1*math.erf(0.5*(1+l)*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5))),2)+pow(2.718281828459045,-0.25*pow((1+l),2)*pow((pow(s,2)+pow(x,2)),-1))*pow(math.erf(0.5*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5)),2)*pow((1+l+-1*(-1+l)*pow(2.718281828459045,0.5*l*pow((pow(s,2)+pow(x,2)),-1))),2)),2),0.5)
         self.normFactor = S(filter_sigma)
 
@@ -303,7 +303,7 @@ class Detector(object):
                                                          self.roi_size))
         
         candidate_image = np.logical_and(max_filtered_strength == strength_image, strength_image >= threshold)
-        print(np.where(candidate_image))
+        # print(np.where(candidate_image))
         row, col = np.where(candidate_image)
         angle = np.empty_like(row, dtype=float)  # radians
         for ind in range(len(row)):
@@ -337,8 +337,6 @@ class DumbellFitFactory(FFBase.FitFactory):
 
         global _dh_detector # One instance for each process, re-used for subsequent fits.
 
-        # guess_psf_sigma_pix = self.metadata.getOrDefault('Analysis.GuessPSFSigmaPix',
-        #                                                  600 / 2.8 / (self.metadata.voxelsize_nm.x))
         # make one at the end, otherwise if we're OK return early
         need_fresh = False
         if not _dh_detector:
@@ -347,7 +345,11 @@ class DumbellFitFactory(FFBase.FitFactory):
             need_fresh = _dh_detector.roi_half_size != self.metadata.getEntry('Analysis.ROISize') or _dh_detector.filter_sigma != self.metadata.getEntry('Analysis.DetectionFilterSigma')
         
         if need_fresh:
-            _dh_detector = Detector(self.metadata.getEntry('Analysis.ROISize'), l_initial=self.metadata.getEntry('Analysis.LobeSepGuess'), lobe_sigma_initial=self.metadata.getEntry('Analysis.SigmaGuess'), filter_sigma=self.metadata.getEntry('Analysis.DetectionFilterSigma'), pxSize=self.metadata.voxelsize_nm.x)
+            _dh_detector = Detector(self.metadata.getEntry('Analysis.ROISize'),
+                                    l_initial=self.metadata.getEntry('Analysis.LobeSepGuess'),
+                                    lobe_sigma_initial=self.metadata.getEntry('Analysis.SigmaGuess'),
+                                    filter_sigma=self.metadata.getEntry('Analysis.DetectionFilterSigma'),
+                                    px_size_nm=self.metadata.voxelsize_nm.x)
         return
     
     def FindAndFit(self, threshold, cameraMaps, **kwargs):
@@ -381,10 +383,9 @@ class DumbellFitFactory(FFBase.FitFactory):
         bgd[bgd<0] = 0
         
         # Note PYME flips row/col y/x, so feed the detector a Transposed frame to get it 'right'
-        # Filter image normalized by sigma map
-        strength_image, angle_image = _dh_detector.filter_frame((bgd/self.noiseSigma.squeeze()).T)
+        strength_image, angle_image = _dh_detector.filter_frame(bgd.T)
 
-        row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, threshold)
+        row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, threshold * self.noiseSigma.squeeze())
 
         # lobe_sep_pix = self.metadata.getEntry('Analysis.LobeSepGuess') / self.metadata.voxelsize_nm.x
         # x0, y0, x1, y1 = lobe_estimate_from_center_pixel(col, row, orientation, lobe_sep_pix)
