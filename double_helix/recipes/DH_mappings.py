@@ -212,7 +212,7 @@ class OptimizeFilterSigma(ModuleBase):
     Notes
     -----
     Supports multiple color channels, but only a Z stack OR a Time series, not both at the same time.
-    
+
     """
     input_image = Input('input')
 
@@ -273,6 +273,7 @@ class OptimizeFilterSigma(ModuleBase):
             plt.colorbar(pim, ax=ax)
             ax.set_xlabel('Filter Sigma [px]')
             ax.set_ylabel(yaxis_label)
-            ax.set_title(f'Max Detection Strength for Channel {c_ind}')
+            max_sigma = filter_sigmas[np.argmax(to_plot.max(axis=0))]
+            ax.set_title(f'Max Strength for Chan{c_ind} at Sigma = {max_sigma} [px]')
         
         return {'output_plot': fig, 'output_data': ImageStack(data=max_strength, haveGUI=False)}
