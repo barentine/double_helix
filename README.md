@@ -1,4 +1,5 @@
-This plugin enables double-helix point-spread function detection and localization fitting within the [Python Microscopy Environment (PYME)](https://python-microscopy.org/)
+This plugin enables double-helix point-spread function detection and localization fitting within the [Python Microscopy Environment (PYME)](https://python-microscopy.org/). 
+This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/group/moerner/) at Stanford University. 
 
 ## Key Features
 - highly efficient detection of double-helix point-spread functions using just 7 (separable) convolutions
