@@ -24,9 +24,13 @@
 import numpy as np
 from scipy import ndimage
 import math
+from math import exp
+from scipy.special import erf
+from scipy.optimize import fmin
 from PYME.localization.FitFactories.fitCommon import fmtSlicesUsed, pack_results
 from PYME.localization.FitFactories import FFBase 
 from PYME.Analysis._fithelpers import FitModelWeighted, FitModelWeightedJac
+
 
 ##################
 # Model functions
@@ -186,20 +190,20 @@ _dh_detector = None
 
 # see pg 39, http://robots.stanford.edu/cs223b04/SteerableFiltersfreeman91design.pdf
 def g2a(x, y, sig):
-    return (1 / (2 * sig**2)) * np.exp((3/2)) * (x**2 - sig**2) * np.exp(- (x**2 + y**2) / (2 * sig**2))
+    return (1 / (2 * np.pi * sig**4)) * (x**2 - sig**2) * np.exp(- (x**2 + y**2) / (2 * sig**2))
 def g2b(x, y, sig):
-    return (1 / (2 * sig**2)) * np.exp((3/2)) * x*y*np.exp(- (x**2 + y**2) / (2 * sig**2))
+    return (1 / (2 * np.pi * sig**4)) * x*y*np.exp(- (x**2 + y**2) / (2 * sig**2))
 def g2c(x, y, sig):
-    return (1 / (2 * sig**2)) * np.exp((3/2)) * (y**2 - sig**2) * np.exp(- (x**2 + y**2) / (2 * sig**2))
+    return (1 / (2 * np.pi * sig**4)) * (y**2 - sig**2) * np.exp(- (x**2 + y**2) / (2 * sig**2))
 # separatable basis set and interpolation functions for fit to hilbert transform of second derivative of gaussian
 def h2a(x, y, sig):
-    return (np.exp((3/2)) / (24 * np.pi * sig**3)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (4 * (2 * np.pi)**(1/2) * x**3 - 3 * sig * (8 * (2 * np.pi)**(1/2) * sig - (np.log(1/sig**2) + np.log(sig**2))) * x)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (x**3 - 6 * x * sig**2)
 def h2b(x, y, sig):
-    return (np.exp((3/2)) / (24 * np.pi * sig**3)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (4 * (2 * np.pi)**(1/2) * x**2 - sig * (8 * (2 * np.pi)**(1/2) * sig - (np.log(1/sig**2) + np.log(sig**2)))) * y
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (x**2 - 2 * sig**2) * y
 def h2c(x, y, sig):
-    return (np.exp((3/2)) / (24 * np.pi * sig**3)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (4 * (2 * np.pi)**(1/2) * y**2 - sig * (8 * (2 * np.pi)**(1/2) * sig - (np.log(1/sig**2) + np.log(sig**2)))) * x
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (y**2 - 2 * sig**2) * x
 def h2d(x, y, sig):
-    return (np.exp((3/2)) / (24 * np.pi * sig**3)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (4 * (2 * np.pi)**(1/2) * y**3 - 3 * sig * (8 * (2 * np.pi)**(1/2) * sig - (np.log(1/sig**2) + np.log(sig**2))) * y)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (y**3 - 6 * y * sig**2)
 
 
 class Detector(object):
@@ -251,8 +255,10 @@ class Detector(object):
         A=1
         l = l_initial/(self.px_size_nm)
         s = lobe_sigma_initial/(self.px_size_nm)
-        S = lambda x: pow(2.718281828459045,3)*pow(3.141592653589793,3)*pow(pow(A,4)*pow(s,8)*pow(x,16)*pow((pow(s,2)+pow(x,2)),-6)*pow((-1*pow(2.718281828459045,-0.25*pow((pow(s,2)+pow(x,2)),-1))*pow((math.erf(0.5*(-1+l)*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5))+-1*math.erf(0.5*(1+l)*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5))),2)+pow(2.718281828459045,-0.25*pow((1+l),2)*pow((pow(s,2)+pow(x,2)),-1))*pow(math.erf(0.5*pow(2,-0.5)*pow((pow(s,2)+pow(x,2)),-0.5)),2)*pow((1+l+-1*(-1+l)*pow(2.718281828459045,0.5*l*pow((pow(s,2)+pow(x,2)),-1))),2)),2),0.5)
-        self.normFactor = S(filter_sigma)
+        S = lambda x : -1*(np.pi * np.sqrt(((1 / (s**2 + x**2)**6) * A**4 * s**8 * x**8 ) * ((exp((-(1+l)**2)/(4 * (s**2 + x**2)))) * ((1 - exp(l/(2 * (s**2 + x**2))) * (-1 + l) + l)**2) * (erf(1/(2 * np.sqrt(2) * np.sqrt(s**2 + x**2)))**2) - (exp((-1)/(4 * (s**2 + x**2)))) * ((erf((-1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))) - erf((1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))))**2))**2))
+        sig = np.linspace(0, 2*roi_half_size, 1000)
+        self.opt_sig=fmin(S,l/3)[0]
+        self.normFactor = -1*S(self.opt_sig)
 
     def filter_frame(self, image):
         """
@@ -280,7 +286,7 @@ class Detector(object):
                     - 1.6875 * h2b_xy * h2c_xy - 0.1875 * h2a_xy * h2d_xy
 
         # Normalized strength image: divide strength by normFactor and take square root
-        strength_image = np.sqrt(np.sqrt(c_2 ** 2 + c_3 ** 2)/self.normFactor)
+        strength_image = np.sqrt(c_2 ** 2 + c_3 ** 2)
         angle_image = np.arctan2(c_3, c_2) / 2
 
 
@@ -302,7 +308,11 @@ class Detector(object):
                                                         (self.roi_size,
                                                          self.roi_size))
         
-        candidate_image = np.logical_and(max_filtered_strength == strength_image, strength_image >= threshold)
+        self.max_filtered_threshold = ndimage.maximum_filter(threshold, #Get Rid of self.max_filtered_threshold
+                                                        (self.roi_size,
+                                                         self.roi_size))
+        
+        candidate_image = np.logical_and(max_filtered_strength == strength_image, strength_image >= self.max_filtered_threshold)
         # print(np.where(candidate_image))
         row, col = np.where(candidate_image)
         angle = np.empty_like(row, dtype=float)  # radians
@@ -377,7 +387,7 @@ class DumbellFitFactory(FFBase.FitFactory):
         else:
             bgd = self.data.astype('f').squeeze()
         # print(bgd.shape)
-        # print(self.noiseSigma.shape)
+        print(self.noiseSigma.shape)
 
         # negative values in bg subtraction lead to detection artefacts so make any negative pixel have value of 0
         bgd[bgd<0] = 0
@@ -385,7 +395,7 @@ class DumbellFitFactory(FFBase.FitFactory):
         # Note PYME flips row/col y/x, so feed the detector a Transposed frame to get it 'right'
         strength_image, angle_image = _dh_detector.filter_frame(bgd.T)
 
-        row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, threshold * self.noiseSigma.squeeze())
+        row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, _dh_detector.normFactor * (threshold * self.noiseSigma.squeeze())**2)
 
         # lobe_sep_pix = self.metadata.getEntry('Analysis.LobeSepGuess') / self.metadata.voxelsize_nm.x
         # x0, y0, x1, y1 = lobe_estimate_from_center_pixel(col, row, orientation, lobe_sep_pix)
