@@ -250,8 +250,8 @@ class Detector(object):
         self.h2c = h2c(X, Y, filter_sigma)
         self.h2d = h2d(X, Y, filter_sigma)
 
-        # compute normalization factor for strength image
-        # analytically computed value for max filter response for given dhpsf and filter sigma
+        # self.normFactor: float 
+        #   analytically computed value for max filter response for given dhpsf and optimal filter sigma
         A=1
         l = l_initial/(self.px_size_nm)
         s = lobe_sigma_initial/(self.px_size_nm)
@@ -308,11 +308,11 @@ class Detector(object):
                                                         (self.roi_size,
                                                          self.roi_size))
         
-        self.max_filtered_threshold = ndimage.maximum_filter(threshold, #Get Rid of self.max_filtered_threshold
+        max_filtered_threshold = ndimage.maximum_filter(threshold,
                                                         (self.roi_size,
                                                          self.roi_size))
         
-        candidate_image = np.logical_and(max_filtered_strength == strength_image, strength_image >= self.max_filtered_threshold)
+        candidate_image = np.logical_and(max_filtered_strength == strength_image, strength_image >= max_filtered_threshold)
         # print(np.where(candidate_image))
         row, col = np.where(candidate_image)
         angle = np.empty_like(row, dtype=float)  # radians
@@ -395,6 +395,8 @@ class DumbellFitFactory(FFBase.FitFactory):
         # Note PYME flips row/col y/x, so feed the detector a Transposed frame to get it 'right'
         strength_image, angle_image = _dh_detector.filter_frame(bgd.T)
 
+        # _dh_detector.normFactor * (threshold * self.noiseSigma.squeeze())**2 allows for thresholding on
+        #   values similar to SNR
         row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, _dh_detector.normFactor * (threshold * self.noiseSigma.squeeze())**2)
 
         # lobe_sep_pix = self.metadata.getEntry('Analysis.LobeSepGuess') / self.metadata.voxelsize_nm.x
