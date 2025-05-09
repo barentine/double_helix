@@ -3,13 +3,15 @@ import numpy as np
 from PYME.IO import MetaDataHandler
 md = MetaDataHandler.SimpleMDHandler()
 
+fit_mod = 'double_helix.DoubleGaussFit'
+
 md['StartTime'] = 1300676151.901
 md['tIndex'] = 0
 md['Analysis.BGRange'] = [0, 0]
 # md['Analysis.DataFileID'] = 1571469165
 # md['Analysis.DebounceRadius'] = 14
-md['Analysis.DetectionThreshold'] = 0.75E6
-md['Analysis.FitModule'] = 'DoubleHelixFit_Theta'
+md['Analysis.DetectionThreshold'] = 1# 0.75E6
+md['Analysis.FitModule'] = fit_mod
 # md['Analysis.InterpModule'] = 'CSInterpolator'
 #md['Analysis.EstimatorModule'] = 'priEstimator'
 md['Analysis.subtractBackground'] = False
@@ -27,9 +29,9 @@ md['voxelsize.units'] = 'um'
 md['voxelsize.x'] = 0.1177
 md['voxelsize.y'] = 0.1177
 md['voxelsize.z'] = 0.1
-md['Analysis.SigmaGuess'] = 200
-md['Analysis.LobeSepGuess'] = 900
-md['Analysis.DetectionFilterMag'] = 0.15
+md['Analysis.SigmaGuess'] = 200  # Double Helix Lobe Sigma Guess [nm]
+md['Analysis.LobeSepGuess'] = 900  # Double Helix Lobe Separation Guess [nm]
+md['Analysis.DetectionFilterSigma'] = 8  # Detection Filter Sigma (in px)
 
 # A0, A1, x, y, theta, lobe_sep, sig, bg = p
 md['Test.DefaultParams'] = [2000, 2000, 0, 0, 0, 900, 200, 50]
@@ -43,7 +45,7 @@ def test_DoubleHelixFit_Theta():
     loose, but should be sufficient to detect when the code has been broken"""
     from PYME.localization.Test import fitTestJigWC as fitTestJig
 
-    tj = fitTestJig.fitTestJig(md, 'DoubleHelixFit_Theta')
+    tj = fitTestJig.fitTestJig(md, fit_mod)
     tj.runTests(nTests=100)
 
     errors_over_pred_IQR = fitTestJig.IQR((tj.error('x0') / tj.res['fitError']['x0']))
