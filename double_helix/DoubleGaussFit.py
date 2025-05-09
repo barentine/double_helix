@@ -406,7 +406,7 @@ class DumbellFitFactory(FFBase.FitFactory):
 
         # _dh_detector.normFactor * (threshold * self.noiseSigma.squeeze())**2 allows for thresholding on
         #   values similar to SNR
-        row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, _dh_detector.normFactor * (threshold * self.noiseSigma.squeeze())**2)
+        row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, _dh_detector.normFactor * (threshold * self.noiseSigma.T.squeeze())**2)
 
         # lobe_sep_pix = self.metadata.getEntry('Analysis.LobeSepGuess') / self.metadata.voxelsize_nm.x
         # x0, y0, x1, y1 = lobe_estimate_from_center_pixel(col, row, orientation, lobe_sep_pix)
