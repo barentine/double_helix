@@ -259,6 +259,8 @@ class Detector(object):
         sig = np.linspace(0, 2*roi_half_size, 1000)
         self.opt_sig=fmin(S,l/3)[0]
         self.normFactor = -1*S(self.opt_sig)
+        self.s=s 
+        self.l=l
 
     def filter_frame(self, image):
         """
@@ -267,6 +269,9 @@ class Detector(object):
         image: ndarray
             2D, single frame image
         """
+
+        # convert input image to float
+        image=image.astype('float32')
         # print('here - image size: %s, g2a size: %s' % (image.shape, self.g2a.shape))
         g2a_xy = ndimage.convolve(image, self.g2a)
         g2b_xy = ndimage.convolve(image, self.g2b)
@@ -304,13 +309,17 @@ class Detector(object):
             orientation [radians] of candidate emitters. 0 points along row in
             increasing col.
         """
+
+        max_filter_roi_size = np.ceil(self.s + self.l)
+        print(max_filter_roi_size)
+
         max_filtered_strength = ndimage.maximum_filter(strength_image, 
-                                                        (self.roi_size,
-                                                         self.roi_size))
+                                                        (max_filter_roi_size,
+                                                         max_filter_roi_size))
         
         max_filtered_threshold = ndimage.maximum_filter(threshold,
-                                                        (self.roi_size,
-                                                         self.roi_size))
+                                                        (max_filter_roi_size,
+                                                         max_filter_roi_size))
         
         candidate_image = np.logical_and(max_filtered_strength == strength_image, strength_image >= max_filtered_threshold)
         # print(np.where(candidate_image))
