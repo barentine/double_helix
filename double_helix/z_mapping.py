@@ -119,6 +119,12 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         theta = chan['fitResults_theta']
         error_theta = chan['fitError_theta']
         lobesep = chan['fitResults_lobesep']
+        A0 = chan['fitResults_A0']
+        A1 = chan['fitResults_A1']
+        startParams_x0 = chan['startParams_x0']
+        startParams_y0 = chan['startParams_y0']
+        x = chan['x']
+        y = chan['y']
         # error_lobesep = chan['fitError_lobesep']
 
 
@@ -171,10 +177,25 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         lobesep_residual = lobesep - lobesep_spline(z_out)
         sigma_residual = sigma - sig_spline(z_out)  # FIXME - should we be taking absolute value on sigma?
 
+        # compute the x-y distance between initial guess and fitted x-y coordinate
+        xy_initial_residual = np.empty_like(theta)
+        xy_initial_residual = np.sqrt((x - startParams_x0)**2 + (y - startParams_y0)**2)
+
+        # for each localization, compute and save the ratio of lobe amplitudes
+        # currently saved as ratio of larger amplitude to smaller amplitude (values 1<=)
+        A_ratio = np.empty_like(theta)
+        for ind in range(len(A0)):
+            if A0[ind] > A1[ind]:
+                A_ratio[ind] =  A0[ind]/A1[ind]
+            else:
+                A_ratio[ind] =  A1[ind]/A0[ind]
+
         chan.addColumn('dh_z', z_out)
         chan.addColumn('dh_z_error', error_z_out)
         chan.addColumn('dh_lobesep_residual', lobesep_residual)
         chan.addColumn('dh_sigma_residual', sigma_residual)
+        chan.addColumn('A_ratio', A_ratio)
+        chan.addColumn('xy_initial_residual', xy_initial_residual)
 
         if c_ind < 1:
             dh_loc = chan
