@@ -29,3 +29,5 @@ dist\*
 *64.pkg
 *.css.map
 .vscode/
+*-checkpoint.ipynb
+*.ipynb_checkpoints
