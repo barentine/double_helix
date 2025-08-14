@@ -34,16 +34,21 @@ class DHMapper(object):
         recipe.add_modules_and_execute([dh_mapper,])
         self.pipeline.selectDataSource('dh_mapped')
         
-        lobe_sep = self.pipeline.mdh['Analysis']['LobeSepGuess']
+        # ---------- set up some default filter ranges to be fairly permissive:
+        lobe_sep = self.pipeline.mdh['Analysis.LobeSepGuess']
         lobe_sep_half_range = 0.5 * lobe_sep
         lobe_sep_min = lobe_sep - lobe_sep_half_range
         lobe_sep_max = lobe_sep + lobe_sep_half_range
 
-        sigma = self.pipeline.mdh['Analysis']['SigmaGuess']
+        sigma = self.pipeline.mdh['Analysis.SigmaGuess']
         sigma_half_range = 0.5 * sigma
         sigma_min = sigma - sigma_half_range
         sigma_max = sigma + sigma_half_range
+        
+        xy_detection_residual = self.pipeline.mdh['Analysis.ROISize'] * 0.25 * (self.pipeline.mdh.voxelsize_nm.x + 
+                                       self.pipeline.mdh.voxelsize_nm.y)  # [nm]
 
+        # add the filtering recipe module
         dh_filter = FilterTable(recipe, inputName=self.pipeline.selectedDataSourceKey,
                                 filters={
                                     'error_x' : [0, 50],  # [nm]
@@ -54,7 +59,10 @@ class DHMapper(object):
                                     'fitError_theta': [0, 0.3],  # [rad]
                                     'fitResults_A0' : [0, np.finfo(np.float32).max], # ADC Counts
                                     'fitResults_A1' : [0, np.finfo(np.float32).max], # ADC Counts
-                                    'dh_amp_ratio' : [0, 1]
+                                    'dh_amp_ratio' : [0, 1],
+                                    'dh_xy_detection_residual': [0, xy_detection_residual],
+                                    'dh_sigma_residual': [-sigma_half_range, sigma_half_range],
+                                    'dh_lobesep_residual': [-lobe_sep_half_range, lobe_sep_half_range]
                                     # 'n_photoelectrons': [100, 10000],  # [pe-]
                                     }, outputName='dh_filtered')
         
