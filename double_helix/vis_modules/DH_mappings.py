@@ -34,17 +34,27 @@ class DHMapper(object):
         recipe.add_modules_and_execute([dh_mapper,])
         self.pipeline.selectDataSource('dh_mapped')
         
-        lobe_sep = np.median(self.pipeline['fitResults_lobesep'])
-        lobe_sep_half_range = 0.15 * lobe_sep
+        lobe_sep = self.pipeline.mdh['Analysis']['LobeSepGuess']
+        lobe_sep_half_range = 0.5 * lobe_sep
         lobe_sep_min = lobe_sep - lobe_sep_half_range
         lobe_sep_max = lobe_sep + lobe_sep_half_range
 
+        sigma = self.pipeline.mdh['Analysis']['SigmaGuess']
+        sigma_half_range = 0.5 * sigma
+        sigma_min = sigma - sigma_half_range
+        sigma_max = sigma + sigma_half_range
+
         dh_filter = FilterTable(recipe, inputName=self.pipeline.selectedDataSourceKey,
                                 filters={
-                                    'error_x' : [0, 30],  # [nm]
-                                    'error_y': [0, 30],  # [nm]
+                                    'error_x' : [0, 50],  # [nm]
+                                    'error_y': [0, 50],  # [nm]
+                                    'dh_z_error' : [0, 100], # [nm]
+                                    'sig' : [sigma_min, sigma_max], #[nm]
                                     'fitResults_lobesep': [lobe_sep_min, lobe_sep_max],  # [nm]
                                     'fitError_theta': [0, 0.3],  # [rad]
+                                    'fitResults_A0' : [0, np.finfo(np.float32).max], # ADC Counts
+                                    'fitResults_A1' : [0, np.finfo(np.float32).max], # ADC Counts
+                                    'dh_amp_ratio' : [0, 1]
                                     # 'n_photoelectrons': [100, 10000],  # [pe-]
                                     }, outputName='dh_filtered')
         
