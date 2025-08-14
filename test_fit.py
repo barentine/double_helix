@@ -46,5 +46,3 @@ def test_DoubleHelixFit_Theta():
     
     assert np.abs(tj.error('x0')).mean() < 0.1 * (md['voxelsize.x'] * 1e3)  # 0.1 [pix] in [nm]
     assert np.abs(tj.error('theta')).mean() < 0.1  # [rad.]
-
-test_DoubleHelixFit_Theta()
