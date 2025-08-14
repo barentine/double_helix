@@ -137,7 +137,7 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         unwrapped_theta_cal = np.unwrap(np.asarray(cal['theta'])[z_valid_mask], np.pi/2, period=np.pi)
         theta_spline = LSQUnivariateSpline(z_valid, unwrapped_theta_cal, knots, ext='const')
         theta_cal = theta_spline(z_v)
-        dtheta_dz = theta_spline.derivative()
+        dtheta_dz = theta_spline.derivative()  # Note -> constant region of theta cal spline will have dtheta_dz=0
 
         lobesep_spline = LSQUnivariateSpline(z_valid, np.array(cal['lobesep'])[z_valid_mask], knots, ext='const')
         sig_spline = LSQUnivariateSpline(z_valid, np.array(cal['sigma'])[z_valid_mask], knots, ext='const')
@@ -164,17 +164,23 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
             z_out[ind] = z_v[min_loc]
         
         error_z_out = error_theta * (1 / dtheta_dz(z_out))  # err_z = |dz/dtheta| * err_theta, [nm] = [rad] * [nm/rad]
-        
+        error_z_out[np.isinf(error_z_out)] = np.finfo(np.float32).max  # replace any inf from flat theta with maxfloat
         # look-up the lobesep and sigma residuals, accounting for possible sign differences
         # lobesep_residual = np.abs(lobesep) - np.abs(lobesep_spline(z_out))
         # sigma_residual = np.abs(sigma) - np.abs(sig_spline(z_out))
         lobesep_residual = lobesep - lobesep_spline(z_out)
         sigma_residual = sigma - sig_spline(z_out)  # FIXME - should we be taking absolute value on sigma?
 
+
+        amplitudes = np.stack([chan['fitResults_A0'], chan['fitResults_A1']], axis=1)
+        amplitudes = np.sort(amplitudes, axis=1)
+        chan.addColumn('dh_amp_ratio', amplitudes[:,0] / amplitudes[:,1])
+
         chan.addColumn('dh_z', z_out)
         chan.addColumn('dh_z_error', error_z_out)
         chan.addColumn('dh_lobesep_residual', lobesep_residual)
         chan.addColumn('dh_sigma_residual', sigma_residual)
+        chan.addColumn('dh_xy_detection_residual', np.sqrt((chan['x'] - chan['startParams_x0'])**2 + (chan['y'] - chan['startParams_y0'])**2))
 
         if c_ind < 1:
             dh_loc = chan
