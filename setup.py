@@ -13,7 +13,7 @@
 # be called 'pyme_plugin'.
 PACKAGE_NAME = 'double_helix'
 # Set your version, as a string. Something like YY.MM.DD works well here
-PACKAGE_VERSION = '25.08.13'
+PACKAGE_VERSION = '25.08.14'
 # Include a short description of your package. This might eventually get
 # displayed in e.g. Anaconda cloud if you build/upload packages, etc.
 PACKAGE_DESCRIPTION = 'Double Helix PSF fitting'
