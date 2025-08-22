@@ -34,15 +34,27 @@ class DHCalibrator(Plugin):
         import os
         from double_helix.z_mapping import calibrate_double_helix_psf
         from double_helix.z_range_dialog import ZRangeDialog
+        from double_helix.detection_params_dialog import DetectionParamsDialog
         
         # query user for type of calibration
         # ftypes = ['Double Helix Theta', 'Double Helix Separate Gaussians']  # , 'AstigGaussGPUFitFR']
         # fit_type_dlg = wx.SingleChoiceDialog(self.dsviewer, 'Fit-type selection', 'Fit-type selection', ftypes)
         # fit_type_dlg.ShowModal()
         # fit_mod = ftypes[fit_type_dlg.GetSelection()]
+
         fit_mod = 'double_helix.DoubleGaussFit'
 
-        results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod)
+        # create dialog for user to input detection parameters
+        # detection parameters then passed to calibrate_double_helix_psf
+        detection_params_dialog = DetectionParamsDialog(None, defaultVal=0)
+        succ = detection_params_dialog.ShowModal()
+        if succ == wx.ID_OK:
+            roiHalfSize = int(detection_params_dialog.roiHalfSize.GetValue())
+            initLobeSepGuess = float(detection_params_dialog.initLobeSepGuess.GetValue())
+            initLobeSigmaGuess = float(detection_params_dialog.initLobeSigmaGuess.GetValue())
+            filterSigma = float(detection_params_dialog.detectionFilterSigma.GetValue())
+
+        results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod, roi_half_size=roiHalfSize, filter_sigma=filterSigma, LobseSepGuess=initLobeSepGuess, SigmaGuess=initLobeSigmaGuess)
 
         # do plotting
         plt.ioff()

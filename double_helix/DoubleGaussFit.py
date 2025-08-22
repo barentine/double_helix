@@ -273,14 +273,14 @@ class Detector(object):
         # convert input image to float
         image=image.astype('float32')
         # print('here - image size: %s, g2a size: %s' % (image.shape, self.g2a.shape))
-        g2a_xy = ndimage.convolve(image, self.g2a)
-        g2b_xy = ndimage.convolve(image, self.g2b)
-        g2c_xy = ndimage.convolve(image, self.g2c)
+        g2a_xy = ndimage.convolve(image, self.g2a, mode='nearest')
+        g2b_xy = ndimage.convolve(image, self.g2b, mode='nearest')
+        g2c_xy = ndimage.convolve(image, self.g2c, mode='nearest')
 
-        h2a_xy = ndimage.convolve(image, self.h2a)
-        h2b_xy = ndimage.convolve(image, self.h2b)
-        h2c_xy = ndimage.convolve(image, self.h2c)
-        h2d_xy = ndimage.convolve(image, self.h2d)
+        h2a_xy = ndimage.convolve(image, self.h2a, mode='nearest')
+        h2b_xy = ndimage.convolve(image, self.h2b, mode='nearest')
+        h2c_xy = ndimage.convolve(image, self.h2c, mode='nearest')
+        h2d_xy = ndimage.convolve(image, self.h2d, mode='nearest')
 
         c_2= 0.5 * (g2a_xy**2 - g2c_xy**2) \
                     + 0.46875*(h2a_xy**2 - h2d_xy**2) \
@@ -493,7 +493,7 @@ class DumbellFitFactory(FFBase.FitFactory):
         return results
 
     def FromPoint(self, x, y, z=None, roiHalfSize=7, axialHalfSize=0):
-        roiHalfSize = self.metadata.getOrDefault('Analysis.ROISize', roiHalfSize)
+    
         X, Y, data, background, sigma, xslice, yslice, zslice = self.getROIAtPoint(x, y, z, roiHalfSize, axialHalfSize)
 
         dataMean = data - background
