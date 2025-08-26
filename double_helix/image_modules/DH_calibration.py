@@ -49,12 +49,12 @@ class DHCalibrator(Plugin):
         detection_params_dialog = DetectionParamsDialog(None, defaultVal=0)
         succ = detection_params_dialog.ShowModal()
         if succ == wx.ID_OK:
-            roiHalfSize = int(detection_params_dialog.roiHalfSize.GetValue())
-            initLobeSepGuess = float(detection_params_dialog.initLobeSepGuess.GetValue())
-            initLobeSigmaGuess = float(detection_params_dialog.initLobeSigmaGuess.GetValue())
-            filterSigma = float(detection_params_dialog.detectionFilterSigma.GetValue())
+            roi_half_size = int(detection_params_dialog.roi_half_size.GetValue())
+            lobe_sep_guess = float(detection_params_dialog.lobe_sep_guess.GetValue())
+            lobe_sigma_guess = float(detection_params_dialog.lobe_sigma_guess.GetValue())
+            filter_sigma = float(detection_params_dialog.detection_filter_sigma.GetValue())
 
-        results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod, roi_half_size=roiHalfSize, filter_sigma=filterSigma, LobseSepGuess=initLobeSepGuess, SigmaGuess=initLobeSigmaGuess)
+        results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod, roi_half_size=roi_half_size, filter_sigma=filter_sigma, lobe_sep_guess=lobe_sep_guess, lobe_sigma_guess=lobe_sigma_guess)
 
         # do plotting
         plt.ioff()
