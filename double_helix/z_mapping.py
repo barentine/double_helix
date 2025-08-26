@@ -5,7 +5,7 @@ from scipy import ndimage
 from scipy.interpolate import LSQUnivariateSpline
 import math
 
-def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
+def calibrate_double_helix_psf(image, fit_module, roi_half_size=11, filter_sigma=5.0, lobe_sep_guess=1000, lobe_sigma_guess=200):
     """Generate Z vs theta calibration information from an PSF image stack
 
     Parameters
@@ -18,8 +18,14 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
         FitFactory to use when fitting each frame. At the moment, only supports
         DoubleHelix_Theta
     roi_half_size : int, optional
-        half size of fitting ROI, by default 11 which results in 11 * 2 + 1 = 23
+        half size of fitting ROI and half size of convolution kernels, by default 11 which results in 11 * 2 + 1 = 23
         pixel ROI.
+    filter_sigma : float, optional
+        sigma in pixels of G2, H2 filter functions, by default 5.0
+    LobseSepGuess : float, optional
+        Initial guess for the lobe separation in nm, by default 1000
+    SigmaGuess : float, optional
+        Initial guess for the lobe sigma in nm, by default 200
 
     Returns
     -------
@@ -44,21 +50,28 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11):
 
     results = []
 
+    # save detector parameters as dictionary that will be added to metadata used for FromPoint fitting
+    detection_params = {
+        'Analysis.ROISize': roi_half_size,
+        'Analysis.DetectionFilterSigma': filter_sigma,
+        'Analysis.LobeSepGuess': lobe_sep_guess,
+        'Analysis.SigmaGuess': lobe_sigma_guess
+    }
     for chan_ind in range(image.data_xyztc.shape[3]):
-        res = FitPoints(roiHalfSize=roi_half_size,
+        mod = FitPoints(roiHalfSize=roi_half_size,
                         fitModule=fit_module, 
-                        channel=chan_ind).apply_simple(
-                                            inputImage=image, 
-                                            inputPositions=obj_positions,
-                                            )
-        
+                        channel=chan_ind,
+                        parameters=detection_params)
+        res = mod.apply_simple(inputImage=image, inputPositions=obj_positions)
+
+
         results.append({
                 'theta': res['fitResults_theta'].tolist(),
                 'lobesep': res['fitResults_lobesep'].tolist(),
                 'sigma': res['fitResults_sigma'].tolist(),
                 'z': obj_positions['z'].tolist(),
             })
-
+   
     return results
 
 def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
