@@ -191,19 +191,148 @@ _dh_detector = None
 # see pg 39, http://robots.stanford.edu/cs223b04/SteerableFiltersfreeman91design.pdf
 def g2a(x, y, sig):
     return (1 / (2 * np.pi * sig**4)) * (x**2 - sig**2) * np.exp(- (x**2 + y**2) / (2 * sig**2))
+
+def g2a_x(x, sig):
+    # 1D X kernel of g2a (which is separable)
+    return (1 / (2 * np.pi * sig**4)) * (x**2 - sig**2) * np.exp(- (x**2) / (2 * sig**2))
+def g2a_y(y, sig):
+    """
+    1D Y kernel of g2a (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2))
+
+
 def g2b(x, y, sig):
     return (1 / (2 * np.pi * sig**4)) * x*y*np.exp(- (x**2 + y**2) / (2 * sig**2))
+
+def g2b_x(x, sig):
+    # 1D X kernel of g2b (which is separable)
+    return (1 / (2 * np.pi * sig**4)) * x*np.exp(- (x**2) / (2 * sig**2))
+def g2b_y(y, sig):
+    """
+    1D Y kernel of g2b (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return y*np.exp(- (y**2) / (2 * sig**2))
+
 def g2c(x, y, sig):
     return (1 / (2 * np.pi * sig**4)) * (y**2 - sig**2) * np.exp(- (x**2 + y**2) / (2 * sig**2))
+
+def g2c_x(x, sig):
+    # 1D X kernel of g2c (which is separable)
+    return (1 / (2 * np.pi * sig**4)) * np.exp(- (x**2) / (2 * sig**2))
+def g2c_y(y, sig):
+    """
+    1D Y kernel of g2c (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return (y**2 - sig**2) * np.exp(- (y**2) / (2 * sig**2))
+
 # separatable basis set and interpolation functions for fit to hilbert transform of second derivative of gaussian
 def h2a(x, y, sig):
     return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (x**3 - 6 * x * sig**2)
+
+def h2a_x(x, sig):
+    # 1D X kernel of h2a (which is separable)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2) / (2 * sig**2)) * (x**3 - 6 * x * sig**2)
+def h2a_y(y, sig):
+    """
+    1D Y kernel of h2a (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2))
+
 def h2b(x, y, sig):
     return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (x**2 - 2 * sig**2) * y
+
+def h2b_x(x, sig):
+    # 1D X kernel of h2b (which is separable)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2) / (2 * sig**2)) * (x**2 - 2 * sig**2)
+def h2b_y(y, sig):
+    """
+    1D Y kernel of h2b (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2)) * y
+
+
 def h2c(x, y, sig):
     return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (y**2 - 2 * sig**2) * x
+
+def h2c_x(x, sig):
+    # 1D X kernel of h2c (which is separable)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2) / (2 * sig**2)) * x
+def h2c_y(y, sig):
+    """
+    1D Y kernel of h2c (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2)) * (y**2 - 2 * sig**2)
+
+
 def h2d(x, y, sig):
     return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (y**3 - 6 * y * sig**2)
+
+def h2d_x(x, sig):
+    # 1D X kernel of h2d (which is separable)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2) / (2 * sig**2))
+def h2d_y(y, sig):
+    """
+    1D Y kernel of h2d (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2)) * (y**3 - 6 * y * sig**2)
+
 
 
 class Detector(object):
