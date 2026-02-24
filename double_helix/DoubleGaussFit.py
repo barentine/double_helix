@@ -1,10 +1,6 @@
 #!/usr/bin/python
 
 ##################
-# LatGaussFitFR.py
-#
-# Copyright David Baddeley, 2009
-# d.baddeley@auckland.ac.nz
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -184,7 +180,7 @@ def FitResultR(fitResults, metadata, slicesUsed=None, resultCode=-1, fitErr=None
     return res
 
 _dh_detector = None
-
+_USE_SEPARABLE_FILTERS = True
 
 # see pg 39, http://robots.stanford.edu/cs223b04/SteerableFiltersfreeman91design.pdf
 def g2a(x, y, sig):
@@ -368,14 +364,31 @@ class Detector(object):
         self.roi_half_size = roi_half_size
         self.roi_size = 2 * roi_half_size + 1
 
-        self.g2a = g2a(X, Y, filter_sigma)
-        self.g2b = g2b(X, Y, filter_sigma)
-        self.g2c = g2c(X, Y, filter_sigma)
+        if _USE_SEPARABLE_FILTERS:
+            self.g2a_x = g2a_x(xx, filter_sigma)
+            self.g2a_y = g2a_y(yy, filter_sigma)
+            self.g2b_x = g2b_x(xx, filter_sigma)
+            self.g2b_y = g2b_y(yy, filter_sigma)
+            self.g2c_x = g2c_x(xx, filter_sigma)
+            self.g2c_y = g2c_y(yy, filter_sigma)
 
-        self.h2a = h2a(X, Y, filter_sigma)
-        self.h2b = h2b(X, Y, filter_sigma)
-        self.h2c = h2c(X, Y, filter_sigma)
-        self.h2d = h2d(X, Y, filter_sigma)
+            self.h2a_x = h2a_x(xx, filter_sigma)
+            self.h2a_y = h2a_y(yy, filter_sigma)
+            self.h2b_x = h2b_x(xx, filter_sigma)
+            self.h2b_y = h2b_y(yy, filter_sigma)
+            self.h2c_x = h2c_x(xx, filter_sigma)
+            self.h2c_y = h2c_y(yy, filter_sigma)
+            self.h2d_x = h2d_x(xx, filter_sigma)
+            self.h2d_y = h2d_y(yy, filter_sigma)
+        else:
+            self.g2a = g2a(X, Y, filter_sigma)
+            self.g2b = g2b(X, Y, filter_sigma)
+            self.g2c = g2c(X, Y, filter_sigma)
+
+            self.h2a = h2a(X, Y, filter_sigma)
+            self.h2b = h2b(X, Y, filter_sigma)
+            self.h2c = h2c(X, Y, filter_sigma)
+            self.h2d = h2d(X, Y, filter_sigma)
 
         # self.normFactor: float 
         #   analytically computed value for max filter response for given dhpsf and optimal filter sigma
@@ -399,15 +412,37 @@ class Detector(object):
 
         # convert input image to float
         image=image.astype('float32')
-        # print('here - image size: %s, g2a size: %s' % (image.shape, self.g2a.shape))
-        g2a_xy = ndimage.convolve(image, self.g2a, mode='nearest')
-        g2b_xy = ndimage.convolve(image, self.g2b, mode='nearest')
-        g2c_xy = ndimage.convolve(image, self.g2c, mode='nearest')
+        
+        if _USE_SEPARABLE_FILTERS:
+            g2a_x = ndimage.convolve1d(image, self.g2a_x, axis=0, mode='nearest')
+            g2a_xy = ndimage.convolve1d(g2a_x, self.g2a_y, axis=1, mode='nearest')
 
-        h2a_xy = ndimage.convolve(image, self.h2a, mode='nearest')
-        h2b_xy = ndimage.convolve(image, self.h2b, mode='nearest')
-        h2c_xy = ndimage.convolve(image, self.h2c, mode='nearest')
-        h2d_xy = ndimage.convolve(image, self.h2d, mode='nearest')
+            g2b_x = ndimage.convolve1d(image, self.g2b_x, axis=0, mode='nearest')
+            g2b_xy = ndimage.convolve1d(g2b_x, self.g2b_y, axis=1, mode='nearest')
+
+            g2c_x = ndimage.convolve1d(image, self.g2c_x, axis=0, mode='nearest')
+            g2c_xy = ndimage.convolve1d(g2c_x, self.g2c_y, axis=1, mode='nearest')
+
+            h2a_x = ndimage.convolve1d(image, self.h2a_x, axis=0, mode='nearest')
+            h2a_xy = ndimage.convolve1d(h2a_x, self.h2a_y, axis=1, mode='nearest')
+
+            h2b_x = ndimage.convolve1d(image, self.h2b_x, axis=0, mode='nearest')
+            h2b_xy = ndimage.convolve1d(h2b_x, self.h2b_y, axis=1, mode='nearest')
+
+            h2c_x = ndimage.convolve1d(image, self.h2c_x, axis=0, mode='nearest')
+            h2c_xy = ndimage.convolve1d(h2c_x, self.h2c_y, axis=1, mode='nearest')
+
+            h2d_x = ndimage.convolve1d(image, self.h2d_x, axis=0, mode='nearest')
+            h2d_xy = ndimage.convolve1d(h2d_x, self.h2d_y, axis=1, mode='nearest')
+        else:
+            g2a_xy = ndimage.convolve(image, self.g2a, mode='nearest')
+            g2b_xy = ndimage.convolve(image, self.g2b, mode='nearest')
+            g2c_xy = ndimage.convolve(image, self.g2c, mode='nearest')
+
+            h2a_xy = ndimage.convolve(image, self.h2a, mode='nearest')
+            h2b_xy = ndimage.convolve(image, self.h2b, mode='nearest')
+            h2c_xy = ndimage.convolve(image, self.h2c, mode='nearest')
+            h2d_xy = ndimage.convolve(image, self.h2d, mode='nearest')
 
         c_2= 0.5 * (g2a_xy**2 - g2c_xy**2) \
                     + 0.46875*(h2a_xy**2 - h2d_xy**2) \
