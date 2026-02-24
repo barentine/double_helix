@@ -23,8 +23,6 @@
 
 import numpy as np
 from scipy import ndimage
-import math
-from math import exp
 from scipy.special import erf
 from scipy.optimize import fmin
 from PYME.localization.FitFactories.fitCommon import fmtSlicesUsed, pack_results
@@ -384,8 +382,8 @@ class Detector(object):
         A=1
         l = l_initial/(self.px_size_nm)
         s = lobe_sigma_initial/(self.px_size_nm)
-        S = lambda x : -1*(np.pi * np.sqrt(((1 / (s**2 + x**2)**6) * A**4 * s**8 * x**8 ) * ((exp((-(1+l)**2)/(4 * (s**2 + x**2)))) * ((1 - exp(l/(2 * (s**2 + x**2))) * (-1 + l) + l)**2) * (erf(1/(2 * np.sqrt(2) * np.sqrt(s**2 + x**2)))**2) - (exp((-1)/(4 * (s**2 + x**2)))) * ((erf((-1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))) - erf((1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))))**2))**2))
-        sig = np.linspace(0, 2*roi_half_size, 1000)
+        S = lambda x : -1*(np.pi * np.sqrt(((1 / (s**2 + x**2)**6) * A**4 * s**8 * x**8 ) * ((np.exp((-(1+l)**2)/(4 * (s**2 + x**2)))) * ((1 - np.exp(l/(2 * (s**2 + x**2))) * (-1 + l) + l)**2) * (erf(1/(2 * np.sqrt(2) * np.sqrt(s**2 + x**2)))**2) - (np.exp((-1)/(4 * (s**2 + x**2)))) * ((erf((-1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))) - erf((1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))))**2))**2))
+        
         self.opt_sig=fmin(S,l/3)[0]
         self.normFactor = -1*S(self.opt_sig)
         self.s=s 
