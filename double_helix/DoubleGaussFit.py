@@ -1,10 +1,6 @@
 #!/usr/bin/python
 
 ##################
-# LatGaussFitFR.py
-#
-# Copyright David Baddeley, 2009
-# d.baddeley@auckland.ac.nz
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,8 +19,6 @@
 
 import numpy as np
 from scipy import ndimage
-import math
-from math import exp
 from scipy.special import erf
 from scipy.optimize import fmin
 from PYME.localization.FitFactories.fitCommon import fmtSlicesUsed, pack_results
@@ -186,24 +180,153 @@ def FitResultR(fitResults, metadata, slicesUsed=None, resultCode=-1, fitErr=None
     return res
 
 _dh_detector = None
-
+_USE_SEPARABLE_FILTERS = True
 
 # see pg 39, http://robots.stanford.edu/cs223b04/SteerableFiltersfreeman91design.pdf
 def g2a(x, y, sig):
     return (1 / (2 * np.pi * sig**4)) * (x**2 - sig**2) * np.exp(- (x**2 + y**2) / (2 * sig**2))
+
+def g2a_x(x, sig):
+    # 1D X kernel of g2a (which is separable)
+    return (1 / (2 * np.pi * sig**4)) * (x**2 - sig**2) * np.exp(- (x**2) / (2 * sig**2))
+def g2a_y(y, sig):
+    """
+    1D Y kernel of g2a (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2))
+
+
 def g2b(x, y, sig):
     return (1 / (2 * np.pi * sig**4)) * x*y*np.exp(- (x**2 + y**2) / (2 * sig**2))
+
+def g2b_x(x, sig):
+    # 1D X kernel of g2b (which is separable)
+    return (1 / (2 * np.pi * sig**4)) * x*np.exp(- (x**2) / (2 * sig**2))
+def g2b_y(y, sig):
+    """
+    1D Y kernel of g2b (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return y*np.exp(- (y**2) / (2 * sig**2))
+
 def g2c(x, y, sig):
     return (1 / (2 * np.pi * sig**4)) * (y**2 - sig**2) * np.exp(- (x**2 + y**2) / (2 * sig**2))
+
+def g2c_x(x, sig):
+    # 1D X kernel of g2c (which is separable)
+    return (1 / (2 * np.pi * sig**4)) * np.exp(- (x**2) / (2 * sig**2))
+def g2c_y(y, sig):
+    """
+    1D Y kernel of g2c (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return (y**2 - sig**2) * np.exp(- (y**2) / (2 * sig**2))
+
 # separatable basis set and interpolation functions for fit to hilbert transform of second derivative of gaussian
 def h2a(x, y, sig):
     return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (x**3 - 6 * x * sig**2)
+
+def h2a_x(x, sig):
+    # 1D X kernel of h2a (which is separable)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2) / (2 * sig**2)) * (x**3 - 6 * x * sig**2)
+def h2a_y(y, sig):
+    """
+    1D Y kernel of h2a (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2))
+
 def h2b(x, y, sig):
     return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (x**2 - 2 * sig**2) * y
+
+def h2b_x(x, sig):
+    # 1D X kernel of h2b (which is separable)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2) / (2 * sig**2)) * (x**2 - 2 * sig**2)
+def h2b_y(y, sig):
+    """
+    1D Y kernel of h2b (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2)) * y
+
+
 def h2c(x, y, sig):
     return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (y**2 - 2 * sig**2) * x
+
+def h2c_x(x, sig):
+    # 1D X kernel of h2c (which is separable)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2) / (2 * sig**2)) * x
+def h2c_y(y, sig):
+    """
+    1D Y kernel of h2c (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2)) * (y**2 - 2 * sig**2)
+
+
 def h2d(x, y, sig):
     return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2 + y**2) / (2 * sig**2)) * (y**3 - 6 * y * sig**2)
+
+def h2d_x(x, sig):
+    # 1D X kernel of h2d (which is separable)
+    return (1 / (3 * np.sqrt(2) * np.pi**(3/2) * sig**5)) * np.exp(- (x**2) / (2 * sig**2))
+def h2d_y(y, sig):
+    """
+    1D Y kernel of h2d (which is separable)
+    Note that the normalization factor is ONLY in the x kernel. 
+    
+    Parameters
+    ----------
+    y: np.ndarray
+        Y coordinates [pixels]
+    sig: float
+        Standard deviation of the Gaussian, in [pixels]
+    """
+    return np.exp(- (y**2) / (2 * sig**2)) * (y**3 - 6 * y * sig**2)
+
 
 
 class Detector(object):
@@ -241,22 +364,39 @@ class Detector(object):
         self.roi_half_size = roi_half_size
         self.roi_size = 2 * roi_half_size + 1
 
-        self.g2a = g2a(X, Y, filter_sigma)
-        self.g2b = g2b(X, Y, filter_sigma)
-        self.g2c = g2c(X, Y, filter_sigma)
+        if _USE_SEPARABLE_FILTERS:
+            self.g2a_x = g2a_x(xx, filter_sigma)
+            self.g2a_y = g2a_y(yy, filter_sigma)
+            self.g2b_x = g2b_x(xx, filter_sigma)
+            self.g2b_y = g2b_y(yy, filter_sigma)
+            self.g2c_x = g2c_x(xx, filter_sigma)
+            self.g2c_y = g2c_y(yy, filter_sigma)
 
-        self.h2a = h2a(X, Y, filter_sigma)
-        self.h2b = h2b(X, Y, filter_sigma)
-        self.h2c = h2c(X, Y, filter_sigma)
-        self.h2d = h2d(X, Y, filter_sigma)
+            self.h2a_x = h2a_x(xx, filter_sigma)
+            self.h2a_y = h2a_y(yy, filter_sigma)
+            self.h2b_x = h2b_x(xx, filter_sigma)
+            self.h2b_y = h2b_y(yy, filter_sigma)
+            self.h2c_x = h2c_x(xx, filter_sigma)
+            self.h2c_y = h2c_y(yy, filter_sigma)
+            self.h2d_x = h2d_x(xx, filter_sigma)
+            self.h2d_y = h2d_y(yy, filter_sigma)
+        else:
+            self.g2a = g2a(X, Y, filter_sigma)
+            self.g2b = g2b(X, Y, filter_sigma)
+            self.g2c = g2c(X, Y, filter_sigma)
+
+            self.h2a = h2a(X, Y, filter_sigma)
+            self.h2b = h2b(X, Y, filter_sigma)
+            self.h2c = h2c(X, Y, filter_sigma)
+            self.h2d = h2d(X, Y, filter_sigma)
 
         # self.normFactor: float 
         #   analytically computed value for max filter response for given dhpsf and optimal filter sigma
         A=1
         l = l_initial/(self.px_size_nm)
         s = lobe_sigma_initial/(self.px_size_nm)
-        S = lambda x : -1*(np.pi * np.sqrt(((1 / (s**2 + x**2)**6) * A**4 * s**8 * x**8 ) * ((exp((-(1+l)**2)/(4 * (s**2 + x**2)))) * ((1 - exp(l/(2 * (s**2 + x**2))) * (-1 + l) + l)**2) * (erf(1/(2 * np.sqrt(2) * np.sqrt(s**2 + x**2)))**2) - (exp((-1)/(4 * (s**2 + x**2)))) * ((erf((-1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))) - erf((1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))))**2))**2))
-        sig = np.linspace(0, 2*roi_half_size, 1000)
+        S = lambda x : -1*(np.pi * np.sqrt(((1 / (s**2 + x**2)**6) * A**4 * s**8 * x**8 ) * ((np.exp((-(1+l)**2)/(4 * (s**2 + x**2)))) * ((1 - np.exp(l/(2 * (s**2 + x**2))) * (-1 + l) + l)**2) * (erf(1/(2 * np.sqrt(2) * np.sqrt(s**2 + x**2)))**2) - (np.exp((-1)/(4 * (s**2 + x**2)))) * ((erf((-1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))) - erf((1 + l)/(2 * np.sqrt(2) *np.sqrt(s**2 + x**2))))**2))**2))
+        
         self.opt_sig=fmin(S,l/3)[0]
         self.normFactor = -1*S(self.opt_sig)
         self.s=s 
@@ -272,15 +412,37 @@ class Detector(object):
 
         # convert input image to float
         image=image.astype('float32')
-        # print('here - image size: %s, g2a size: %s' % (image.shape, self.g2a.shape))
-        g2a_xy = ndimage.convolve(image, self.g2a, mode='nearest')
-        g2b_xy = ndimage.convolve(image, self.g2b, mode='nearest')
-        g2c_xy = ndimage.convolve(image, self.g2c, mode='nearest')
+        
+        if _USE_SEPARABLE_FILTERS:
+            g2a_x = ndimage.convolve1d(image, self.g2a_x, axis=0, mode='nearest')
+            g2a_xy = ndimage.convolve1d(g2a_x, self.g2a_y, axis=1, mode='nearest')
 
-        h2a_xy = ndimage.convolve(image, self.h2a, mode='nearest')
-        h2b_xy = ndimage.convolve(image, self.h2b, mode='nearest')
-        h2c_xy = ndimage.convolve(image, self.h2c, mode='nearest')
-        h2d_xy = ndimage.convolve(image, self.h2d, mode='nearest')
+            g2b_x = ndimage.convolve1d(image, self.g2b_x, axis=0, mode='nearest')
+            g2b_xy = ndimage.convolve1d(g2b_x, self.g2b_y, axis=1, mode='nearest')
+
+            g2c_x = ndimage.convolve1d(image, self.g2c_x, axis=0, mode='nearest')
+            g2c_xy = ndimage.convolve1d(g2c_x, self.g2c_y, axis=1, mode='nearest')
+
+            h2a_x = ndimage.convolve1d(image, self.h2a_x, axis=0, mode='nearest')
+            h2a_xy = ndimage.convolve1d(h2a_x, self.h2a_y, axis=1, mode='nearest')
+
+            h2b_x = ndimage.convolve1d(image, self.h2b_x, axis=0, mode='nearest')
+            h2b_xy = ndimage.convolve1d(h2b_x, self.h2b_y, axis=1, mode='nearest')
+
+            h2c_x = ndimage.convolve1d(image, self.h2c_x, axis=0, mode='nearest')
+            h2c_xy = ndimage.convolve1d(h2c_x, self.h2c_y, axis=1, mode='nearest')
+
+            h2d_x = ndimage.convolve1d(image, self.h2d_x, axis=0, mode='nearest')
+            h2d_xy = ndimage.convolve1d(h2d_x, self.h2d_y, axis=1, mode='nearest')
+        else:
+            g2a_xy = ndimage.convolve(image, self.g2a, mode='nearest')
+            g2b_xy = ndimage.convolve(image, self.g2b, mode='nearest')
+            g2c_xy = ndimage.convolve(image, self.g2c, mode='nearest')
+
+            h2a_xy = ndimage.convolve(image, self.h2a, mode='nearest')
+            h2b_xy = ndimage.convolve(image, self.h2b, mode='nearest')
+            h2c_xy = ndimage.convolve(image, self.h2c, mode='nearest')
+            h2d_xy = ndimage.convolve(image, self.h2d, mode='nearest')
 
         c_2= 0.5 * (g2a_xy**2 - g2c_xy**2) \
                     + 0.46875*(h2a_xy**2 - h2d_xy**2) \
