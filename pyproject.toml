@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "double_helix"
+version = "25.08.25"
+description = "Double Helix PSF fitting plugin for the Python Microscopy Environment (PYME)"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "python-microscopy",
+    "numpy",
+    "scipy",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+
+[project.scripts]
+double-helix-install-plugin = "double_helix:install_plugin"
+
+[tool.setuptools.packages.find]
+# Automatically discover double_helix and all sub-packages
+
+[tool.setuptools.package-data]
+double_helix = ["*.yaml"]
+
+[project.urls]
+Homepage = "https://github.com/barentine/double_helix"
