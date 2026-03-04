@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "double_helix"
+name = "pyme-double-helix"
 version = "26.03.01"
 description = "Double Helix PSF fitting plugin for the Python Microscopy Environment (PYME)"
 readme = "README.md"
