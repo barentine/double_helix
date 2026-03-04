@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/614654543.svg)](https://doi.org/10.5281/zenodo.16877693)
+
 This plugin enables double-helix point-spread function detection and localization fitting within the [Python Microscopy Environment (PYME)](https://python-microscopy.org/). 
 This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/group/moerner/) at Stanford University. 
 
@@ -6,13 +8,18 @@ This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/gro
 - Double-gaussian localization fitting parameterized on lobe separation and orientation, which enables direct estimates of their uncertainties
 
 ## Installation / Set up
-1. [Install PYME](https://python-microscopy.org/doc/Installation/Installation.html), using your perfered method. The simplest approach is to use an [executable installer](https://python-microscopy.org/downloads/), though conda or a development installation provided more flexibility for fast upgrades or developing things yourself. As of 2025/01, C. Soeller's [test environment setup tools](https://github.com/csoeller/PYME-test-env) make a great starting point for deveopment installations.
+1. [Install PYME](https://python-microscopy.org/doc/Installation/Installation.html) using your preferred method. The simplest approach is to use an [executable installer](https://python-microscopy.org/downloads/), though conda or a development installation provide more flexibility for fast upgrades or developing things yourself. As of 2025/01, C. Soeller's [test environment setup tools](https://github.com/csoeller/PYME-test-env) makes a great starting point for development installations.
 2. Using git, clone this repository to your machine.
-3. In a terminal/shell with your conda environment activated, run `python setup.py develop` from the top `double_helix` directory to install this plugin. If you used an executable installer for PYME, look for a "Anaconda prompt (python-microscopy)" shell in your start menu.
-4. Check that PYME now finds this pluging by e.g. opening PYMEImage, potentially in test mode `PYMEImage -t` and clicking the `Modules` menu and looking for `DH_Calibration` up near the very top (you may have to scroll up).
-5. It is imperative to have correct metadata for good localization. If your data was not acquired using PYME, please see PYME's [analyzing foreign data documentation](https://python-microscopy.org/doc/AnalysingForeignData.html).
+3. In a terminal/shell with your conda environment activated, run `pip install .` from the top `double_helix` directory (use `pip install -e .` if you want an editable/development install). If you used an executable installer for PYME, look for an "Anaconda prompt (python-microscopy)" shell in your start menu.
+
+### Troubleshooting
+1. Check that PYME finds this plugin by opening PYMEImage (in test mode: `PYMEImage -t`), clicking the `Modules` menu, and looking for `DH_Calibration` near the very top (you may have to scroll up).
+2. If the `DH_Calibration` module is not present, try re-registering explicitly by running `double-helix-install-plugin` in the shell. 
 
 ## Usage
+
+### Metadata
+It is imperative to have correct metadata for good localization. If your data was not acquired using PYME, please see PYME's [analyzing foreign data documentation](https://python-microscopy.org/doc/AnalysingForeignData.html).
 
 ### PSF calibration
 Calibrating your point-spread function is a great way to start. While this calibration is not necessary for fitting, it is used to eventually convert the orientation of the double-helix to a z position for a localized molecule.
