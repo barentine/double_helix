@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools", "wheel", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyme-double-helix"
-version = "26.03.01"
+dynamic = ["version"]
 description = "Double Helix PSF fitting plugin for the Python Microscopy Environment (PYME)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,6 +27,12 @@ test = [
 
 [project.scripts]
 double-helix-install-plugin = "double_helix:install_plugin"
+
+[tool.setuptools_scm]
+# Tagged commit (e.g. v26.03.03)  →  version = "26.03.03"
+# Untagged commit                 →  version = "26.03.03.post4+g1a2b3c4"
+version_scheme = "post-release"
+fallback_version = "0.0.0"  # used when git history / tags are unavailable (CI shallow clones)
 
 [tool.setuptools.packages.find]
 # Automatically discover double_helix and all sub-packages
