@@ -1,4 +1,5 @@
 [![DOI](https://zenodo.org/badge/614654543.svg)](https://doi.org/10.5281/zenodo.16877693)
+[![Tests](https://github.com/barentine/double_helix/actions/workflows/scheduled_test.yml/badge.svg?branch=main)](https://github.com/barentine/double_helix/actions/workflows/scheduled_test.yml)
 
 This plugin enables double-helix point-spread function detection and localization fitting within the [Python Microscopy Environment (PYME)](https://python-microscopy.org/). 
 This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/group/moerner/) at Stanford University. 
