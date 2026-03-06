@@ -8,6 +8,13 @@ This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/gro
 - highly efficient detection of double-helix point-spread functions using just 7 (separable) convolutions
 - Double-gaussian localization fitting parameterized on lobe separation and orientation, which enables direct estimates of their uncertainties
 
+## Quick install
+
+```bash
+pip install pyme-double-helix
+```
+
+
 ## Installation / Set up
 1. [Install PYME](https://python-microscopy.org/doc/Installation/Installation.html) using your preferred method. The simplest approach is to use an [executable installer](https://python-microscopy.org/downloads/), though conda or a development installation provide more flexibility for fast upgrades or developing things yourself. As of 2025/01, C. Soeller's [test environment setup tools](https://github.com/csoeller/PYME-test-env) makes a great starting point for development installations.
 2. Using git, clone this repository to your machine.
