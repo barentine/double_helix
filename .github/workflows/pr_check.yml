@@ -35,14 +35,27 @@ jobs:
           # pymecompress (both have compiled Cython/meson extensions).
           pip install meson-python meson cython numpy
 
-      - name: Install pymecompress
+      - name: Install runtime dependencies (excluding wxpython)
         run: |
-          # Must use --no-build-isolation so the build sees numpy already installed.
+          # pymecompress must be built with --no-build-isolation to see the already-installed numpy.
           pip install --no-build-isolation pymecompress
-
-      - name: Install python-microscopy (stable PyPI release)
-        run: |
-          pip install --no-build-isolation python-microscopy
+          # Install PYME without wxpython (no display available in CI)
+          pip install --no-build-isolation --no-deps python-microscopy
+          # Read PYME's declared dependencies from its installed metadata; skip
+          # wxpython (requires a display) and pymecompress (already installed).
+          python - <<'EOF'
+          import importlib.metadata, subprocess, sys, re
+          skip = {'wxpython', 'pymecompress'}
+          deps = []
+          for req in (importlib.metadata.requires('python-microscopy') or []):
+              if '; extra ==' in req.lower():
+                  continue  # skip optional extras
+              name = re.split(r'[><=!;\[ ]', req.strip())[0].lower()
+              if not any(name.startswith(s) for s in skip):
+                  deps.append(req.strip())
+          if deps:
+              subprocess.check_call([sys.executable, '-m', 'pip', 'install'] + deps)
+          EOF
 
       - name: Install double-helix
         run: |

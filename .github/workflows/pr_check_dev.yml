@@ -39,10 +39,26 @@ jobs:
         run: |
           pip install --no-build-isolation pymecompress
 
+      - name: Clone python-microscopy (git HEAD)
+        run: |
+          git clone --depth=1 https://github.com/python-microscopy/python-microscopy.git /tmp/pyme-src
+
+      - name: Install python-microscopy dependencies (excluding wxpython)
+        run: |
+          # Mirror PYME's own CI: read deps from its pyproject.toml and skip
+          # wxpython (no display in CI) and pymecompress (already installed).
+          python - <<'EOF'
+          import tomllib, subprocess, sys
+          with open('/tmp/pyme-src/pyproject.toml', 'rb') as f:
+              deps = tomllib.load(f)['project']['dependencies']
+          skip = {'wxpython', 'pymecompress'}
+          deps = [d for d in deps if not any(d.lower().startswith(s) for s in skip)]
+          subprocess.check_call([sys.executable, '-m', 'pip', 'install'] + deps)
+          EOF
+
       - name: Install python-microscopy (git HEAD)
         run: |
-          pip install --no-build-isolation \
-            git+https://github.com/python-microscopy/python-microscopy.git
+          pip install --no-build-isolation --no-deps /tmp/pyme-src
 
       - name: Install double-helix
         run: |
