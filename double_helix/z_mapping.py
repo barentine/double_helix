@@ -45,8 +45,8 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11, filter_sigma
     obj_positions['x'] = vs_x_nm * 0.5 * image.data_xyztc.shape[0] * np.ones(n_steps)
     obj_positions['y'] = vs_y_nm * 0.5 * image.data_xyztc.shape[1] * np.ones(n_steps)
     obj_positions['t'] = np.arange(image.data.shape[2])
-    z = np.arange(image.data_xyztc.shape[2]) * image.mdh['voxelsize.z'] * 1.e3  # [um -> nm]
-    obj_positions['z'] = z - z.mean()
+    z = (image.mdh['Origin.z'] + np.arange(image.data_xyztc.shape[2]) * image.mdh['voxelsize.z']) * 1.e3  # [um -> nm]
+    obj_positions['z'] = z #  - z.mean()
 
     results = []
 
