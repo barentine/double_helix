@@ -74,21 +74,7 @@ acquired_theta = np.hstack([
     trimmed_theta - focus_step_theta  # theta decreases due to rotation
 ])
 
-# Generate test image stack
-test_stack_arr = np.empty(
-    (2 * md['Analysis.ROISize'] + 1, 2 * md['Analysis.ROISize'] + 1, len(acquired_theta)),
-    float
-)
-for zind in range(len(acquired_theta)):
-    test_stack_arr[:, :, zind], _, _, _ = DoubleGaussFit.DumbellFitFactory.evalModel(
-        [A0, A0, 0, 0, acquired_theta[zind], md['Analysis.LobeSepGuess'],
-         md['Analysis.SigmaGuess'], 20],
-        md,
-        x=md['voxelsize.x'] * md['Analysis.ROISize'],
-        y=md['voxelsize.y'] * md['Analysis.ROISize'],
-        roiHalfSize=md['Analysis.ROISize']
-    )
-test_stack = ImageStack(test_stack_arr, md)
+
 
 # Create ground truth data source with actual sample positions (as if focus shift had not occurred)
 gt_dict = {
@@ -210,3 +196,209 @@ def test_z_focus_mapping():
         
     finally:
         os.unlink(temp_path)
+
+
+def test_DoubleGaussFit_FindAndFit_XYTheta():
+    """
+    Make sure that DoubleGaussFit.DumbellFitFactory.FindAndFit can find the correct X, Y, Theta position of Double Helices in a test stack with
+    multiple Z positions, and a lateral offset which would cause an error for an incorrectly transposed stack.
+    """
+    # Generate a test image stack with an X offset to check for correct handling of XY conventions
+    # especially combined with theta definitions.
+    x_shift = 1.25 * md.voxelsize_nm.x  # 1.25 pixel shift in X
+    test_stack_arr = np.empty(
+        (2 * md['Analysis.ROISize'] + 1, 2 * md['Analysis.ROISize'] + 1, len(trimmed_theta)),
+        float
+    )
+    for zind in range(len(trimmed_theta)):
+        test_stack_arr[:, :, zind], _, _, _ = DoubleGaussFit.DumbellFitFactory.evalModel(
+            [A0, A0, x_shift, 0, trimmed_theta[zind], md['Analysis.LobeSepGuess'],
+            md['Analysis.SigmaGuess'], 20],
+            md,
+            x=md['voxelsize.x'] * md['Analysis.ROISize'],  # Add X offset
+            y=md['voxelsize.y'] * md['Analysis.ROISize'],
+            roiHalfSize=md['Analysis.ROISize']
+        )
+    test_stack = ImageStack(test_stack_arr, md)
+
+    # Create metadata with tIndex for results packing
+    # tIndex must be set as a direct attribute - DictMDHandler does not expose
+    # dict keys as attributes, so metadata.tIndex would otherwise return None.
+    test_md = MetaDataHandler.DictMDHandler(md)
+    test_md.tIndex = 0
+
+    # Run FindAndFit on each z-frame and collect fit results
+    roi_size = md['Analysis.ROISize']
+    noise_sigma = np.ones((2 * roi_size + 1, 2 * roi_size + 1, 1))
+
+    x0_results = []
+    y0_results = []
+    theta_results = []
+
+    for zind in range(len(trimmed_theta)):
+        frame_data = test_stack_arr[:, :, zind:zind + 1]  # (x, y, 1) in PYME convention
+        factory = DoubleGaussFit.DumbellFitFactory(frame_data, test_md, noiseSigma=noise_sigma)
+        results = factory.FindAndFit(threshold=1.0, cameraMaps=None)
+
+        assert len(results) == 1, (
+            f"Expected exactly 1 detection at z-index {zind}, found {len(results)}"
+        )
+
+        x0_results.append(float(results['fitResults']['x0'][0]))
+        y0_results.append(float(results['fitResults']['y0'][0]))
+        theta_results.append(float(results['fitResults']['theta'][0]))
+
+    x0_arr = np.array(x0_results)
+    y0_arr = np.array(y0_results)
+    theta_arr = np.array(theta_results)
+
+    # Check that the x_shift appears in x0, not y0.
+    # The evalModel grid has the same origin for x and y, so x0 - y0 should equal x_shift.
+    # A transposed data array would produce x0 - y0 ≈ -x_shift instead, causing this to fail.
+    np.testing.assert_allclose(
+        x0_arr - y0_arr,
+        x_shift * np.ones(len(trimmed_theta)),
+        atol=0.1 * md.voxelsize_nm.x,  # 0.1 pixel tolerance [nm]
+        err_msg="x0 - y0 does not equal x_shift: x/y convention may be transposed"
+    )
+
+    # Check that theta is correctly recovered (pi-periodic, since A0 == A1 makes theta
+    # and theta+pi produce identical PSFs)
+    d = (theta_arr - trimmed_theta) % np.pi  # wrapped to [0, pi)
+    theta_err = np.minimum(d, np.pi - d)      # wrapped to [0, pi/2]
+    assert np.all(theta_err < 0.1), (
+        f"Theta not recovered within 0.1 rad: max error = {theta_err.max():.3f} rad"
+    )
+
+
+def test_DoubleGaussFit_FromPoint_XYTheta():
+    """
+    Make sure that DoubleGaussFit.DumbellFitFactory.FromPoint can find the correct X, Y, Theta position of a Double Helix in a test stack with
+    multiple Z positions, and a lateral offset which would cause an error for an incorrectly transposed stack.
+    """
+    x_shift = 1.25 * md.voxelsize_nm.x  # 1.25 pixel shift in X
+    roi_size = md['Analysis.ROISize']
+    test_stack_arr = np.empty(
+        (2 * roi_size + 1, 2 * roi_size + 1, len(trimmed_theta)),
+        float
+    )
+    for zind in range(len(trimmed_theta)):
+        test_stack_arr[:, :, zind], _, _, _ = DoubleGaussFit.DumbellFitFactory.evalModel(
+            [A0, A0, x_shift, 0, trimmed_theta[zind], md['Analysis.LobeSepGuess'],
+             md['Analysis.SigmaGuess'], 20],
+            md,
+            x=md['voxelsize.x'] * roi_size,
+            y=md['voxelsize.y'] * roi_size,
+            roiHalfSize=roi_size
+        )
+    
+    test_md = MetaDataHandler.DictMDHandler(md)
+    # tIndex must be a direct attribute - DictMDHandler does not expose dict keys as attributes
+    test_md.tIndex = 0
+
+    noise_sigma = np.ones((2 * roi_size + 1, 2 * roi_size + 1, 1))
+
+    x0_results = []
+    y0_results = []
+    theta_results = []
+
+    for zind in range(len(trimmed_theta)):
+        frame_data = test_stack_arr[:, :, zind:zind + 1]  # (x, y, 1) in PYME convention
+        factory = DoubleGaussFit.DumbellFitFactory(frame_data, test_md, noiseSigma=noise_sigma)
+        # Pass the array center as the hint; roiHalfSize=roi_size covers the full frame
+        result = factory.FromPoint(x=roi_size, y=roi_size, roiHalfSize=roi_size)
+
+        x0_results.append(float(result['fitResults']['x0']))
+        y0_results.append(float(result['fitResults']['y0']))
+        theta_results.append(float(result['fitResults']['theta']))
+
+    x0_arr = np.array(x0_results)
+    y0_arr = np.array(y0_results)
+    theta_arr = np.array(theta_results)
+
+    # Check that the x_shift appears in x0, not y0.
+    # A transposed data array would produce x0 - y0 ≈ -x_shift instead.
+    np.testing.assert_allclose(
+        x0_arr - y0_arr,
+        x_shift * np.ones(len(trimmed_theta)),
+        atol=0.1 * md.voxelsize_nm.x,  # 0.1 pixel tolerance [nm]
+        err_msg="x0 - y0 does not equal x_shift: x/y convention may be transposed"
+    )
+
+    # Check that theta is correctly recovered (pi-periodic, since A0 == A1 makes theta
+    # and theta+pi produce identical PSFs)
+    d = (theta_arr - trimmed_theta) % np.pi  # wrapped to [0, pi)
+    theta_err = np.minimum(d, np.pi - d)      # wrapped to [0, pi/2]
+    assert np.all(theta_err < 0.1), (
+        f"Theta not recovered within 0.1 rad: max error = {theta_err.max():.3f} rad"
+    )
+
+
+def test_DoubleHelixFindAndFit_XYTheta():
+    """
+    Make sure that double_helix.recipes.DH_mappings.DetectDoubleHelices has the correct X, Y, and Theta conventions, by looking
+    at a test stack with multiple Z positions and a lateral offset which would cause an error for an incorrectly transposed stack.
+    """
+    from double_helix.recipes.DH_mappings import DetectDoubleHelices
+    from unittest.mock import patch
+    import numpy as np
+
+    x_shift = 1.25 * md.voxelsize_nm.x  # 1.25 pixel shift in X
+    roi_size = md['Analysis.ROISize']
+    n_frames = len(trimmed_theta)
+
+    # Build z-stack with one DH per frame, each with the same x_shift but varying theta
+    test_stack_arr = np.empty(
+        (2 * roi_size + 1, 2 * roi_size + 1, n_frames),
+        float
+    )
+    for zind in range(n_frames):
+        test_stack_arr[:, :, zind], _, _, _ = DoubleGaussFit.DumbellFitFactory.evalModel(
+            [A0, A0, x_shift, 0, trimmed_theta[zind], md['Analysis.LobeSepGuess'],
+             md['Analysis.SigmaGuess'], 20],
+            md,
+            x=md['voxelsize.x'] * roi_size,
+            y=md['voxelsize.y'] * roi_size,
+            roiHalfSize=roi_size
+        )
+
+    test_stack = ImageStack(test_stack_arr, md, haveGUI=False)
+
+    # Patch fitTask.calcSigma to return a flat noise sigma of 1.0 per pixel,
+    # avoiding dependency on camera map files in the test environment.
+    flat_sigma = np.ones((2 * roi_size + 1, 2 * roi_size + 1))
+    with patch('PYME.localization.remFitBuf.fitTask.calcSigma', return_value=flat_sigma):
+        outputs = DetectDoubleHelices(
+            lobe_sep_nm=md['Analysis.LobeSepGuess'],
+            lobe_sigma_nm=md['Analysis.SigmaGuess'],
+            filter_sigma_px=md['Analysis.DetectionFilterSigma'],
+            fit_roi_half_size=roi_size,
+            thresh=1.0,
+        ).apply(input_image=test_stack)
+
+    detections = outputs['dh_detections']
+
+    assert len(detections['x']) == n_frames, (
+        f"Expected {n_frames} detections (one per frame), got {len(detections['x'])}"
+    )
+
+    x_arr = np.array(detections['x'])
+    y_arr = np.array(detections['y'])
+    angle_arr = np.array(detections['angle'])
+
+    # Check that the x_shift appears in x, not y.
+    # Detection is at integer pixels, so tolerance is 1 pixel.
+    # A transposed frame would produce x - y ≈ -x_shift instead, failing this assertion.
+    np.testing.assert_allclose(
+        x_arr - y_arr,
+        x_shift * np.ones(n_frames),
+        atol=md.voxelsize_nm.x,  # 1 pixel tolerance for integer detection
+        err_msg="x - y does not equal x_shift: x/y convention may be transposed"
+    )
+
+    # Check that angle is correctly recovered (pi-periodic)
+    d = (angle_arr - trimmed_theta) % np.pi  # wrapped to [0, pi)
+    angle_err = np.minimum(d, np.pi - d)      # wrapped to [0, pi/2]
+    assert np.all(angle_err < 0.1), (
+        f"angle not recovered within 0.1 rad: max error = {angle_err.max():.3f} rad"
+    )
