@@ -149,10 +149,12 @@ class DetectDoubleHelices(ModuleBase):
             for z_ind in range(im.data_xyztc.shape[2]):
                 for t_ind in range(im.data_xyztc.shape[3]):
                     frame = im.data_xyztc[:, :, z_ind, t_ind, c_ind]
-                    strength_image, angle_image = detector.filter_frame(frame.squeeze())
+                    # transpose frame because detector didn't originally match PYME XY convention
+                    strength_image, angle_image = detector.filter_frame(frame.squeeze().T)
                     strength[:, :, z_ind, t_ind, c_ind] = strength_image
                     noise_sigma = fitTask.calcSigma(im.mdh, frame)
-                    row, col, angle = detector.extract_candidates(strength_image, angle_image, self.thresh * noise_sigma.squeeze())
+                    row, col, angle = detector.extract_candidates(strength_image, angle_image,
+                                                                detector.normFactor * (self.thresh * noise_sigma.T.squeeze())**2)
                     r = np.append(r, row)
                     c = np.append(c, col)
                     theta = np.append(theta, angle)
@@ -161,7 +163,10 @@ class DetectDoubleHelices(ModuleBase):
                     ci = np.append(ci, [c_ind] * len(row))
         
         detections = DictSource({
-            'x': r*im.voxelsize_nm.x, 'y': c*im.voxelsize_nm.y, 'angle': theta, 'z_index': zi, 't': ti, 'probe': ci,
+            # NOTE - XY vs RC trickery to match PYME convention.
+            'x': c*im.voxelsize_nm.y, # Would be r*im.voxelsize_nm.x, but swap here to match PYME convention
+            'y': r*im.voxelsize_nm.x, # Would be c*im.voxelsize_nm.y, but swap here to match PYME convention
+            'angle': theta, 'z_index': zi, 't': ti, 'probe': ci,
             'z': zi * im.voxelsize_nm.z
         })
         detections.mdh = NestedClassMDHandler(im.mdh)
