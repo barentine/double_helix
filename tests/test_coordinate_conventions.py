@@ -448,7 +448,6 @@ def test_wobble_correction():
         wobble_psf_stack,
         'double_helix.DoubleGaussFit',
         roi_half_size=roi_size,
-        filter_sigma=md['Analysis.DetectionFilterSigma'],
         lobe_sep_guess=md['Analysis.LobeSepGuess'],
         lobe_sigma_guess=md['Analysis.SigmaGuess']
     )
