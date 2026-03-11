@@ -684,8 +684,8 @@ class DumbellFitFactory(FFBase.FitFactory):
         # lobe_sep_pix = self.metadata.getEntry('Analysis.LobeSepGuess') / self.metadata.voxelsize_nm.x
         # x0, y0, x1, y1 = lobe_estimate_from_center_pixel(col, row, orientation, lobe_sep_pix)
         # convert positions from pixels to nm
-        x_nm = self.metadata.voxelsize_nm.x * (col + self.roi_offset[0])
-        y_nm = self.metadata.voxelsize_nm.y * (row + self.roi_offset[1])
+        x_nm = self.metadata.voxelsize_nm.x * x # initial x guess is simply x argument in nm
+        y_nm = self.metadata.voxelsize_nm.y * y # initial y guess is simply y argument in nm
         # x0_nm = self.metadata.voxelsize_nm.x * (x0 + self.roi_offset[0])
         # x1_nm = self.metadata.voxelsize_nm.x * (x1 + self.roi_offset[0])
         # y0_nm = self.metadata.voxelsize_nm.y * (y0 + self.roi_offset[1])

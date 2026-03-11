@@ -2,6 +2,7 @@
 from PYME.recipes.base import ModuleBase, register_module
 from PYME.recipes.traits import Input, Output, FileOrURI, Float, Enum, Int, List
 from PYME.IO import tabular
+from matplotlib import image
 import numpy as np
 import logging
 logger = logging.getLogger(__name__)
@@ -122,6 +123,7 @@ class DetectDoubleHelices(ModuleBase):
     thresh = Float(1.0)
     output_strength_im = Output('dh_filtered')
     output_detections = Output('dh_detections')
+    output_norm_factor = Output('dh_norm_factor')
 
     def run(self, input_image):
         from PYME.IO.tabular import DictSource
@@ -143,6 +145,7 @@ class DetectDoubleHelices(ModuleBase):
         r, c, = np.array([], dtype=int), np.array([], dtype=int), 
         theta = np.array([], dtype=float), 
         zi, ti, ci = np.array([], dtype=int), np.array([], dtype=int), np.array([], dtype=int)
+
 
         # filter the image
         for c_ind in range(im.data_xyztc.shape[4]):
@@ -180,7 +183,8 @@ class DetectDoubleHelices(ModuleBase):
         logger.debug('Strength image size:' + str(strength.shape))
         strength = ImageStack(data=strength, mdh=stregnth_mdh, haveGUI=False)
 
-        return {'output_strength_im': strength, 'output_detections': detections}
+        norm_factor_table = tabular.DictSource({'norm_factor': np.atleast_1d(detector.normFactor)})
+        return {'output_strength_im': strength, 'output_detections': detections, 'output_norm_factor': norm_factor_table}
 
 
 @register_module('OptimizeFilterSigma')
@@ -221,10 +225,9 @@ class OptimizeFilterSigma(ModuleBase):
     """
     input_image = Input('input')
 
-    lobe_sep_nm = Float(900)
-    lobe_sigma_nm = Float(180)
-    filter_sigma_px_range = List(Float, value=[3, 15], minlen=2, maxlen=2)
-    filter_sigma_px_stride = Float(0.5)
+    lobe_sep_nm = Float(1050)
+    lobe_sigma_nm = Float(210)
+    filter_sigma_px_stride = Float(0.25)
     fit_roi_half_size = Int(10)
     fit_module = Enum(['double_helix.DoubleGaussFit'])
     
@@ -232,53 +235,149 @@ class OptimizeFilterSigma(ModuleBase):
     output_data = Output('max_strength')
 
     def run(self, input_image):
+
         import matplotlib.pyplot as plt
         from PYME.IO.image import ImageStack  # FIXME - would be nice to pass output max strength array as a simple array instead
-        filter_sigmas = np.arange(self.filter_sigma_px_range[0], 
-                                  self.filter_sigma_px_range[1] + self.filter_sigma_px_stride, 
+        from PYME.recipes.measurement import FitPoints
+        from scipy.signal import find_peaks
+
+        #### Fit Z Stack
+        vs_x_nm = input_image.mdh['voxelsize']['x']*1e3
+        vs_y_nm = input_image.mdh['voxelsize']['y']*1e3
+  
+        n_steps = input_image.data_xyztc.shape[2]
+        obj_positions = {}
+
+        obj_positions['x'] = vs_x_nm * 0.5 * input_image.data_xyztc.shape[0] * np.ones(n_steps)
+        obj_positions['y'] = vs_y_nm * 0.5 * input_image.data_xyztc.shape[1] * np.ones(n_steps)
+        obj_positions['t'] = np.arange(input_image.data.shape[2])
+        z = np.arange(input_image.data_xyztc.shape[2]) * input_image.mdh['voxelsize.z'] * 1.e3  # [um -> nm]
+        obj_positions['z'] = z - z.mean()
+
+        results = []
+
+        detection_params = {
+        'Analysis.ROISize': self.fit_roi_half_size,
+        'Analysis.LobeSepGuess': self.lobe_sep_nm,
+        'Analysis.SigmaGuess': self.lobe_sigma_nm
+        }
+
+        for chan_ind in range(input_image.data_xyztc.shape[3]):
+            mod = FitPoints(roiHalfSize=self.fit_roi_half_size,
+                            fitModule=self.fit_module, 
+                            channel=chan_ind,
+                            parameters=detection_params)
+            res = mod.apply_simple(inputImage=input_image, inputPositions=obj_positions)
+            
+
+            results.append({
+                    'theta': res['fitResults_theta'].tolist(),
+                    'lobesep': res['fitResults_lobesep'].tolist(),
+                    'sigma': res['fitResults_sigma'].tolist(),
+                    'x': res['x'].tolist(),
+                    'y': res['y'].tolist(),
+                    'z': obj_positions['z'].tolist(),
+                })
+            
+
+        # Plot Fitted Theta, Lobe Sep., Lobe Sigma vs Z
+        plt.ioff()
+
+        fig, axes = plt.subplots(3, 1, figsize=(12, 10))
+        for ind, res in enumerate(results):
+            axes[0].plot(res['z'], res['theta'], label='chan. %d' % ind)
+            axes[0].set_ylabel('Theta [rad.]')
+
+            axes[1].plot(res['z'], res['lobesep'], label='chan. %d' % ind)
+            axes[1].set_ylabel('Lobe Separation [nm]')
+            
+            axes[2].plot(res['z'], res['sigma'], label='chan. %d' % ind)
+            axes[2].set_ylabel('Sigma [nm]')
+
+        axes[0].legend()
+        axes[1].legend()
+        axes[2].legend()
+        axes[2].set_xlabel('z position [nm]')
+
+        plt.tight_layout()
+
+        plt.ion()
+        plt.show()
+        ####    
+
+        # Determine x and y pixel corresponding to center of DHPSF fit of each frame in z stack
+        x_0_px = np.floor(results[0]['x']/vs_x_nm).astype(int)
+        y_0_px = np.floor(results[0]['y']/vs_y_nm).astype(int)
+
+        # Create array of index of theta values corresponding to theta displacement of -80, -40, 0, 40, and 80 degrees from middle z slice
+        theta = np.asarray(results[0]['theta'])
+        theta_ind_m = np.floor(theta.size/2).astype(int)
+        delta_theta = (theta - theta[theta_ind_m])
+
+        for ind in range(len(delta_theta)):
+            if np.abs(delta_theta[ind]) > np.pi/2:
+                delta_theta[ind] = delta_theta[ind] - np.pi
+
+        theta_ind_ll = np.searchsorted(delta_theta, -80*np.pi/180)
+        theta_ind_l  = np.searchsorted(delta_theta, -40*np.pi/180)
+        theta_ind_u  = np.searchsorted(delta_theta,  40*np.pi/180)
+        theta_ind_uu = np.searchsorted(delta_theta,  80*np.pi/180)
+
+        theta_ind = [theta_ind_ll, theta_ind_l, theta_ind_m, theta_ind_u, theta_ind_uu]
+
+        # Determine upper and lower bounds for filter sigma search
+        # lower bound: 1.5 x lobe sigma guess
+        # upper bound: lobe separation guess 
+        # Then create array of filter sigma values
+        lobe_sigma_px = self.lobe_sigma_nm / vs_x_nm
+        lobe_sep_px = self.lobe_sep_nm / vs_x_nm
+
+        sigma_range_min = np.ceil(1*lobe_sigma_px).astype(int)
+        sigma_range_max = np.ceil(lobe_sep_px).astype(int)
+
+        filter_sigmas = np.arange(sigma_range_min, 
+                                  sigma_range_max + self.filter_sigma_px_stride, 
                                   self.filter_sigma_px_stride)
         
-        max_strength = np.zeros((len(filter_sigmas),) + input_image.data_xyztc.shape[2:], dtype=float)
+        # Create array to store maximum value of detected strength at each theta of interest
+        max_strength = np.zeros((len(filter_sigmas), len(theta_ind)) + input_image.data_xyztc.shape[3:], dtype=float)
 
+        # Run detection with each filter sigma on each slice
+        # Save strength at each theta of interest to max_strength
+        # Strength is normalized by dividing by normFactor and taking square root 
         for s_ind, sigma in enumerate(filter_sigmas):
             det = DetectDoubleHelices(lobe_sep_nm=self.lobe_sep_nm, 
                                         lobe_sigma_nm=self.lobe_sigma_nm, filter_sigma_px=sigma,
                                         fit_roi_half_size=self.fit_roi_half_size, 
                                         fit_module=self.fit_module)
             outputs = det.apply(input_image=input_image)
-            strength_stack = outputs[det.output_strength_im] 
+            strength_stack = outputs[det.output_strength_im]
+            norm_factor = outputs[det.output_norm_factor]['norm_factor'][0]
             for c_ind in range(strength_stack.data_xyztc.shape[4]):
-                for z_ind in range(strength_stack.data_xyztc.shape[2]):
+                for ang_ind in range(len(theta_ind)):
                     for t_ind in range(strength_stack.data_xyztc.shape[3]):
-                        max_strength[s_ind, z_ind, t_ind, c_ind] = np.max(strength_stack.data_xyztc[:, :, z_ind, t_ind, c_ind])
-        
-        
+                        max_strength[s_ind, ang_ind, t_ind, c_ind] = np.sqrt(strength_stack.data_xyztc[x_0_px[t_ind], y_0_px[t_ind], ang_ind, t_ind, c_ind]/norm_factor)
+
+
         # plot the results
+        # Average strength at each theta of interest for each filter sigma is plotted
         n_channels = strength_stack.data_xyztc.shape[4]
-        fig, axes = plt.subplots(n_channels, 1, figsize=(12, 10))
+        fig, axes = plt.subplots(n_channels, 1, figsize=(4, 3 * n_channels), dpi=200)
         for c_ind in range(n_channels):
             try:
                 ax = axes[c_ind]
             except:
                 ax = axes
-            to_plot = max_strength[:, :, :, c_ind].squeeze().T  # put filter sigma on the horizontal x axis
-            if input_image.data_xyztc.shape[2] == 1: # long axis is t not z
-                yaxis = range(to_plot.shape[0])
-                yaxis_label = 'Frame'
-            else:# long axis is z not t
-                yaxis = input_image.voxelsize_nm.z * range(to_plot.shape[0])
-                yaxis_label = 'Z [nm]'
-            yaxis_px_stride = yaxis[1] - yaxis[0]
-            filter_sigma_px_stride = filter_sigmas[1] - filter_sigmas[0]
-            pim = ax.imshow(to_plot, interpolation='nearest', origin='lower',
-                      extent=(filter_sigmas[0] - 0.5 * filter_sigma_px_stride, 
-                              filter_sigmas[-1] + 0.5 * filter_sigma_px_stride, 
-                              yaxis[0] - 0.5*yaxis_px_stride, yaxis[-1] + 0.5*yaxis_px_stride),
-                      aspect='auto')
-            plt.colorbar(pim, ax=ax)
+            # average over theta_ind (axis=1) and z/t (axis=2), leaving only filter_sigma axis
+            mean_strength = max_strength[:, :, :, c_ind].mean(axis=(1, 2))  # shape: (n_sigmas,)
+            ax.plot(filter_sigmas, mean_strength)
             ax.set_xlabel('Filter Sigma [px]')
-            ax.set_ylabel(yaxis_label)
-            max_sigma = filter_sigmas[np.argmax(to_plot.max(axis=0))]
-            ax.set_title(f'Max Strength for Chan{c_ind} at Sigma = {max_sigma} [px]')
-        
+            ax.set_ylabel('Mean Strength')
+            peak_indices, _ = find_peaks(mean_strength)
+            optimal_sigma = np.max(filter_sigmas[peak_indices])
+            ax.set_title(f'Chan{c_ind}, max at Sigma = {optimal_sigma:.2f} [px]')
+            ax.axvline(x=optimal_sigma, color='r', linestyle='--', label=f'Max at {optimal_sigma:.2f} px')
+            ax.legend()
+
+        plt.tight_layout()
         return {'output_plot': fig, 'output_data': ImageStack(data=max_strength, haveGUI=False)}

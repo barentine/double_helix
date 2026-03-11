@@ -120,7 +120,6 @@ def test_calibration_z():
         psf_stack,
         'double_helix.DoubleGaussFit',
         roi_half_size=md['Analysis.ROISize'],
-        filter_sigma=md['Analysis.DetectionFilterSigma'],
         lobe_sep_guess=md['Analysis.LobeSepGuess'],
         lobe_sigma_guess=md['Analysis.SigmaGuess']
     )
@@ -164,7 +163,6 @@ def test_z_focus_mapping():
         psf_stack,
         'double_helix.DoubleGaussFit',
         roi_half_size=md['Analysis.ROISize'],
-        filter_sigma=md['Analysis.DetectionFilterSigma'],
         lobe_sep_guess=md['Analysis.LobeSepGuess'],
         lobe_sigma_guess=md['Analysis.SigmaGuess']
     )
@@ -371,7 +369,6 @@ def test_DoubleHelixFindAndFit_XYTheta():
         outputs = DetectDoubleHelices(
             lobe_sep_nm=md['Analysis.LobeSepGuess'],
             lobe_sigma_nm=md['Analysis.SigmaGuess'],
-            filter_sigma_px=md['Analysis.DetectionFilterSigma'],
             fit_roi_half_size=roi_size,
             thresh=1.0,
         ).apply(input_image=test_stack)
