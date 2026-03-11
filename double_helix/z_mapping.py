@@ -5,7 +5,7 @@ from scipy import ndimage
 from scipy.interpolate import LSQUnivariateSpline
 import math
 
-def calibrate_double_helix_psf(image, fit_module, roi_half_size=11, filter_sigma=5.0, lobe_sep_guess=1000, lobe_sigma_guess=200):
+def calibrate_double_helix_psf(image, fit_module, roi_half_size=11, lobe_sep_guess=1000, lobe_sigma_guess=200):
     """Generate Z vs theta calibration information from an PSF image stack
 
     Parameters
@@ -53,7 +53,6 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11, filter_sigma
     # save detector parameters as dictionary that will be added to metadata used for FromPoint fitting
     detection_params = {
         'Analysis.ROISize': roi_half_size,
-        'Analysis.DetectionFilterSigma': filter_sigma,
         'Analysis.LobeSepGuess': lobe_sep_guess,
         'Analysis.SigmaGuess': lobe_sigma_guess
     }

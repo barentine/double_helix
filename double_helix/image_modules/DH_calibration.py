@@ -51,10 +51,9 @@ class DHCalibrator(Plugin):
         if succ == wx.ID_OK:
             roi_half_size = int(detection_params_dialog.roi_half_size.GetValue())
             lobe_sep_guess = float(detection_params_dialog.lobe_sep_guess.GetValue())
-            lobe_sigma_guess = float(detection_params_dialog.lobe_sigma_guess.GetValue())
-            filter_sigma = float(detection_params_dialog.detection_filter_sigma.GetValue())
+            lobe_sigma_guess = float(detection_params_dialog.lobe_sigma_guess.GetValue())    
 
-        results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod, roi_half_size=roi_half_size, filter_sigma=filter_sigma, lobe_sep_guess=lobe_sep_guess, lobe_sigma_guess=lobe_sigma_guess)
+        results = calibrate_double_helix_psf(self.dsviewer.image, fit_mod, roi_half_size=roi_half_size, lobe_sep_guess=lobe_sep_guess, lobe_sigma_guess=lobe_sigma_guess)
 
         # do plotting
         plt.ioff()
