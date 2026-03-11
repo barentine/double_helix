@@ -1,4 +1,5 @@
 [![DOI](https://zenodo.org/badge/614654543.svg)](https://doi.org/10.5281/zenodo.16877693)
+[![Tests](https://github.com/barentine/double_helix/actions/workflows/scheduled_test.yml/badge.svg?branch=main)](https://github.com/barentine/double_helix/actions/workflows/scheduled_test.yml)
 
 This plugin enables double-helix point-spread function detection and localization fitting within the [Python Microscopy Environment (PYME)](https://python-microscopy.org/). 
 This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/group/moerner/) at Stanford University. 
@@ -7,8 +8,17 @@ This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/gro
 - highly efficient detection of double-helix point-spread functions using just 7 (separable) convolutions
 - Double-gaussian localization fitting parameterized on lobe separation and orientation, which enables direct estimates of their uncertainties
 
+Read more: [_Efficient Double Helix Detection with Steerable Filters_. Barentine, A.E.S., Balaji, A., Moerner, W.E. (2025). bioRxiv 2025.08.14.670427](https://doi.org/10.1101/2025.08.14.670427)
+
+## Quick install
+
+```bash
+pip install pyme-double-helix
+```
+
+
 ## Installation / Set up
-1. [Install PYME](https://python-microscopy.org/doc/Installation/Installation.html) using your preferred method. The simplest approach is to use an [executable installer](https://python-microscopy.org/downloads/), though conda or a development installation provide more flexibility for fast upgrades or developing things yourself. As of 2025/01, C. Soeller's [test environment setup tools](https://github.com/csoeller/PYME-test-env) makes a great starting point for development installations.
+1. [Install PYME](https://python-microscopy.org/doc/Installation/Installation.html) using your preferred method. The simplest approach is to use an [executable installer](https://python-microscopy.org/downloads/), though a development installation provide more flexibility for fast upgrades or developing things yourself. As of 2025/01, C. Soeller's [test environment setup tools](https://github.com/csoeller/PYME-test-env) makes a great starting point for development installations.
 2. Using git, clone this repository to your machine.
 3. In a terminal/shell with your conda environment activated, run `pip install .` from the top `double_helix` directory (use `pip install -e .` if you want an editable/development install). If you used an executable installer for PYME, look for an "Anaconda prompt (python-microscopy)" shell in your start menu.
 
