@@ -21,12 +21,6 @@ class DetectionParamsDialog(wx.Dialog):
         row1.Add(self.roi_half_size, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
         main_sizer.Add(row1, 0, wx.EXPAND | wx.ALL, 0)
 
-        # Detection Filter Sigma
-        row2 = wx.BoxSizer(wx.HORIZONTAL)
-        row2.Add(wx.StaticText(self, -1, u'Detection Filter Sigma [px]:'), 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-        self.detection_filter_sigma = wx.TextCtrl(self, -1,'%1.6G' % defaultVal, size=(80, -1))
-        row2.Add(self.detection_filter_sigma, 0, wx.ALIGN_CENTER_VERTICAL | wx.ALL, 5)
-        main_sizer.Add(row2, 0, wx.EXPAND | wx.ALL, 0)
 
         # Initial Lobe Sep. Guess
         row3 = wx.BoxSizer(wx.HORIZONTAL)
