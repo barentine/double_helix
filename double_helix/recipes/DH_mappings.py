@@ -362,7 +362,7 @@ class OptimizeFilterSigma(ModuleBase):
         # plot the results
         # Average strength at each theta of interest for each filter sigma is plotted
         n_channels = strength_stack.data_xyztc.shape[4]
-        fig, axes = plt.subplots(n_channels, 1, figsize=(12, 10))
+        fig, axes = plt.subplots(n_channels, 1, figsize=(4, 3 * n_channels), dpi=200)
         for c_ind in range(n_channels):
             try:
                 ax = axes[c_ind]
@@ -375,7 +375,7 @@ class OptimizeFilterSigma(ModuleBase):
             ax.set_ylabel('Mean Strength')
             peak_indices, _ = find_peaks(mean_strength)
             optimal_sigma = np.max(filter_sigmas[peak_indices])
-            ax.set_title(f'Mean Strength vs Filter Sigma for Chan{c_ind}, max at Sigma = {optimal_sigma:.2f} [px]')
+            ax.set_title(f'Chan{c_ind}, max at Sigma = {optimal_sigma:.2f} [px]')
             ax.axvline(x=optimal_sigma, color='r', linestyle='--', label=f'Max at {optimal_sigma:.2f} px')
             ax.legend()
 
