@@ -32,6 +32,7 @@ class DHCalibrator(Plugin):
         import matplotlib.cm
         import json
         import os
+        import numpy as np
         from double_helix.z_mapping import calibrate_double_helix_psf
         from double_helix.z_range_dialog import ZRangeDialog
         from double_helix.detection_params_dialog import DetectionParamsDialog
@@ -46,7 +47,7 @@ class DHCalibrator(Plugin):
 
         # create dialog for user to input detection parameters
         # detection parameters then passed to calibrate_double_helix_psf
-        detection_params_dialog = DetectionParamsDialog(None, defaultVal=0)
+        detection_params_dialog = DetectionParamsDialog(None, defaultVal=[10, 1025, 215])
         succ = detection_params_dialog.ShowModal()
         if succ == wx.ID_OK:
             roi_half_size = int(detection_params_dialog.roi_half_size.GetValue())
@@ -65,9 +66,15 @@ class DHCalibrator(Plugin):
 
             axes[1].plot(res['z'], res['lobesep'], label='chan. %d' % ind)
             axes[1].set_ylabel('Lobe Separation [nm]')
-            
+            median_lobesep = np.median(res['lobesep'])
+            axes[1].axhline(y=median_lobesep, color='r', linestyle='--', linewidth=2, 
+                            label=f'Median Lobe Separation, {median_lobesep:.0f} nm')
+
             axes[2].plot(res['z'], res['sigma'], label='chan. %d' % ind)
             axes[2].set_ylabel('Sigma [nm]')
+            median_sigma = np.median(res['sigma'])
+            axes[2].axhline(y=median_sigma, color='r', linestyle='--', linewidth=2, 
+                            label=f'Median Sigma, {median_sigma:.0f} nm')
 
         axes[0].legend()
         axes[1].legend()

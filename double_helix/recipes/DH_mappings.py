@@ -290,14 +290,23 @@ class OptimizeFilterSigma(ModuleBase):
 
             axes[1].plot(res['z'], res['lobesep'], label='chan. %d' % ind)
             axes[1].set_ylabel('Lobe Separation [nm]')
+            median_lobesep = np.median(res['lobesep'])
+            axes[1].axhline(y=median_lobesep, color='r', linestyle='--', linewidth=2, 
+                         label=f'Median Lobe Separation, {median_lobesep:.0f} nm')
+        
             
             axes[2].plot(res['z'], res['sigma'], label='chan. %d' % ind)
             axes[2].set_ylabel('Sigma [nm]')
+            median_sigma = np.median(res['sigma'])
+            axes[2].axhline(y=median_sigma, color='r', linestyle='--', linewidth=2, 
+                         label=f'Median Sigma, {median_sigma:.0f} nm')
 
         axes[0].legend()
         axes[1].legend()
         axes[2].legend()
         axes[2].set_xlabel('z position [nm]')
+
+        
 
         plt.tight_layout()
 
