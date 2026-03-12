@@ -57,8 +57,8 @@ class DHMapper(object):
                                     'sig' : [sigma_min, sigma_max], #[nm]
                                     'fitResults_lobesep': [lobe_sep_min, lobe_sep_max],  # [nm]
                                     'fitError_theta': [0, 0.3],  # [rad]
-                                    'fitResults_A0' : [0, np.finfo(np.float32).max], # ADC Counts
-                                    'fitResults_A1' : [0, np.finfo(np.float32).max], # ADC Counts
+                                    'fitResults_A0' : [0, float(np.finfo(np.float32).max)], # ADC Counts
+                                    'fitResults_A1' : [0, float(np.finfo(np.float32).max)], # ADC Counts
                                     'dh_amp_ratio' : [0, 1],
                                     'dh_xy_detection_residual': [0, xy_detection_residual],
                                     'dh_sigma_residual': [-sigma_half_range, sigma_half_range],
