@@ -399,3 +399,142 @@ def test_DoubleHelixFindAndFit_XYTheta():
     assert np.all(angle_err < 0.1), (
         f"angle not recovered within 0.1 rad: max error = {angle_err.max():.3f} rad"
     )
+
+
+def test_wobble_correction():
+    """
+    Test that if the Z calibration stack has Z-dependent X and Y offsets ("wobble") they
+    are correctly calibrated and can be subtracted from the localizations during mapping.
+
+    This test:
+    1. Builds a calibration PSF stack where the PSF center shifts in x and y with z
+    2. Checks that calibrate_double_helix_psf recovers the known wobble pattern.
+    3. Creates localizations whose raw x, y contain the same z-dependent wobble.
+    4. Verifies that DoubleHelixMapZ with correct_wobble=True removes the wobble.
+    5. Verifies that with correct_wobble=False the z-dependent variation is retained.
+    """
+    from double_helix.z_mapping import calibrate_double_helix_psf
+    from double_helix.recipes.DH_mappings import DoubleHelixMapZ
+    import json
+    import tempfile
+    import os
+
+    roi_size = md['Analysis.ROISize']
+    n_cal = len(_z)
+
+    # Define a sinusoidal wobble pattern that is zero at the central calibration slice
+    wobble_amplitude = 150  # nm (~1.25 pixels), large enough to dominate fitting noise
+    t = np.linspace(-np.pi, np.pi, n_cal)
+    x0_shifts = wobble_amplitude * np.sin(t)        # zero at center (t=0)
+    y0_shifts = wobble_amplitude * np.sin(2 * t) / 2  # independent shape for y
+
+    # Build a calibration PSF stack with the known wobble baked in as x0, y0 shifts
+    wobble_psf_arr = np.empty(
+        (2 * roi_size + 1, 2 * roi_size + 1, n_cal),
+        float
+    )
+    for zind in range(n_cal):
+        wobble_psf_arr[:, :, zind], _, _, _ = DoubleGaussFit.DumbellFitFactory.evalModel(
+            [A0, A0, x0_shifts[zind], y0_shifts[zind], _theta[zind],
+             md['Analysis.LobeSepGuess'], md['Analysis.SigmaGuess'], 20],
+            md,
+            x=md['voxelsize.x'] * roi_size,
+            y=md['voxelsize.y'] * roi_size,
+            roiHalfSize=roi_size
+        )
+
+    wobble_psf_stack = ImageStack(wobble_psf_arr, md, haveGUI=False)
+    cal = calibrate_double_helix_psf(
+        wobble_psf_stack,
+        'double_helix.DoubleGaussFit',
+        roi_half_size=roi_size,
+        lobe_sep_guess=md['Analysis.LobeSepGuess'],
+        lobe_sigma_guess=md['Analysis.SigmaGuess']
+    )
+    c_ind = 0
+
+    # Expected wobble in calibration = shifts relative to the central slice
+    x_central_idx = n_cal // 2
+    x_wobble_expected = x0_shifts - x0_shifts[x_central_idx]
+    y_wobble_expected = y0_shifts - y0_shifts[x_central_idx]
+
+    # Check that the calibration correctly extracted the wobble pattern
+    np.testing.assert_allclose(
+        cal[c_ind]['x_wobble'], x_wobble_expected, atol=10.0,
+        err_msg="Calibrated x_wobble does not match known wobble pattern"
+    )
+    np.testing.assert_allclose(
+        cal[c_ind]['y_wobble'], y_wobble_expected, atol=10.0,
+        err_msg="Calibrated y_wobble does not match known wobble pattern"
+    )
+
+    # Add z_range required by DoubleHelixMapZ
+    for chan_cal in cal:
+        chan_cal['z_range'] = (_z[0] - 1, _z[-1] + 1)
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.dh_json', delete=False, encoding='utf8') as f:
+        temp_path = f.name
+        json.dump(cal, f)
+
+    try:
+        # Synthetic localizations: true position is zero; raw x, y include the z-dependent wobble.
+        # Use trimmed z range to avoid spline edge effects.
+        true_x = 0.0
+        true_y = 0.0
+        x_wobble_trimmed = x_wobble_expected[step_size_ind:-step_size_ind]
+        y_wobble_trimmed = y_wobble_expected[step_size_ind:-step_size_ind]
+
+        loc_dict = {
+            'z': np.zeros_like(trimmed_z),       # objective at z=0; dh_z will equal trimmed_z
+            'x': true_x + x_wobble_trimmed,
+            'y': true_y + y_wobble_trimmed,
+            'fitResults_theta': trimmed_theta,
+            'fitError_theta': 0.001 * np.ones_like(trimmed_theta),
+            'fitResults_sigma': md['Analysis.SigmaGuess'] * np.ones_like(trimmed_theta),
+            'fitResults_lobesep': md['Analysis.LobeSepGuess'] * np.ones_like(trimmed_theta),
+            'fitResults_A0': A0 * np.ones_like(trimmed_theta),
+            'fitResults_A1': A0 * np.ones_like(trimmed_theta),
+            'startParams_x0': true_x * np.ones_like(trimmed_theta),
+            'startParams_y0': true_y * np.ones_like(trimmed_theta),
+            'fitError_sigma': np.ones_like(trimmed_theta),
+            'fitError_lobesep': np.ones_like(trimmed_theta),
+        }
+        locs = DictSource(loc_dict)
+        locs.mdh = MetaDataHandler.DictMDHandler(md)
+
+        # --- Wobble correction ON ---
+        result_corrected = DoubleHelixMapZ(
+            calibration_location=temp_path,
+            target_knot_spacing=2 * step_size + 1,
+            correct_wobble=True
+        ).apply(input_name=locs)
+        corrected = result_corrected['dh_localizations']
+
+        # After correction x and y should be approximately constant (wobble removed)
+        np.testing.assert_allclose(
+            corrected['x'], true_x * np.ones_like(trimmed_z), atol=1.0,
+            err_msg="Wobble correction did not remove x wobble"
+        )
+        np.testing.assert_allclose(
+            corrected['y'], true_y * np.ones_like(trimmed_z), atol=1.0,
+            err_msg="Wobble correction did not remove y wobble"
+        )
+
+        # --- Wobble correction OFF ---
+        result_uncorrected = DoubleHelixMapZ(
+            calibration_location=temp_path,
+            target_knot_spacing=2 * step_size + 1,
+            correct_wobble=False
+        ).apply(input_name=locs)
+        uncorrected = result_uncorrected['dh_localizations']
+
+        # Without correction, x and y should retain z-dependent variation
+        assert np.std(uncorrected['x']) > 0.1 * wobble_amplitude, (
+            f"Without wobble correction, x should vary with z; std = {np.std(uncorrected['x']):.1f} nm"
+        )
+        assert np.std(uncorrected['y']) > 0.1 * wobble_amplitude, (
+            f"Without wobble correction, y should vary with z; std = {np.std(uncorrected['y']):.1f} nm"
+        )
+
+    finally:
+        os.unlink(temp_path)

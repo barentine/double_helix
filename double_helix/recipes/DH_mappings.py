@@ -1,6 +1,6 @@
 
 from PYME.recipes.base import ModuleBase, register_module
-from PYME.recipes.traits import Input, Output, FileOrURI, Float, Enum, Int, List
+from PYME.recipes.traits import Input, Output, FileOrURI, Float, Enum, Int, List, Bool
 from PYME.IO import tabular
 from matplotlib import image
 import numpy as np
@@ -50,6 +50,7 @@ class DoubleHelixMapZ(ModuleBase):
     input_name = Input('localizations')
     calibration_location = FileOrURI('')
     target_knot_spacing = Float(101)
+    correct_wobble = Bool(True)
     plot_name = Output('dh_z_lookup_plot')
     output_name = Output('dh_localizations')
 
@@ -64,7 +65,7 @@ class DoubleHelixMapZ(ModuleBase):
         calibration = json.loads(s)
 
         # dh_loc = lookup_dh_z(dh_loc, calibration, rough_knot_spacing=self.target_knot_spacing)
-        dh_loc, rec_plot = lookup_dh_z(dh_loc, calibration, rough_knot_spacing=self.target_knot_spacing, plot=True)
+        dh_loc, rec_plot = lookup_dh_z(dh_loc, calibration, rough_knot_spacing=self.target_knot_spacing, plot=True, wobble_correction=self.correct_wobble)
 
         # FIXME - A and B are amplitudes, not sum-norms
         # n_adu = (dh_loc['fitResults_A'] + dh_loc['fitResults_B'])  # [ADU]

@@ -63,17 +63,22 @@ def calibrate_double_helix_psf(image, fit_module, roi_half_size=11, lobe_sep_gue
                         parameters=detection_params)
         res = mod.apply_simple(inputImage=image, inputPositions=obj_positions)
 
-
+        # for wobble correction, subtract off X, Y of central slice. Save that Xc Yc to metadata
+        x_central, y_central = res['fitResults_x0'][n_steps//2], res['fitResults_y0'][n_steps//2]
         results.append({
                 'theta': res['fitResults_theta'].tolist(),
                 'lobesep': res['fitResults_lobesep'].tolist(),
                 'sigma': res['fitResults_sigma'].tolist(),
                 'z': obj_positions['z'].tolist(),
+                'x_wobble': (res['fitResults_x0'] - x_central).tolist(),
+                'y_wobble': (res['fitResults_y0'] - y_central).tolist(),
+                'x_central': float(x_central),
+                'y_central': float(y_central)
             })
    
     return results
 
-def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
+def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False, wobble_correction=True):
     """
     Generates a look-up table for z based on theta fit results and calibration 
     information.
@@ -93,6 +98,9 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         calibration to make knot placing more convenient.
     plot : bool
         Flag to toggle plotting
+    wobble_correction : bool
+        Flag to toggle subtracting X and Y wobble based on looked-up Z position. 
+        By default, True.
 
     Returns
     -------
@@ -154,7 +162,6 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         lobesep_spline = LSQUnivariateSpline(z_valid, np.array(cal['lobesep'])[z_valid_mask], knots, ext='const')
         sig_spline = LSQUnivariateSpline(z_valid, np.array(cal['sigma'])[z_valid_mask], knots, ext='const')
 
-
         z_out = np.empty_like(theta)
         # error_z_out = np.empty_like(theta)  # we'll do this vectorized after the loop
         # lobesep_residual = np.empty_like(theta)  # we'll do this vectorized after the loop
@@ -194,6 +201,16 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
         chan.addColumn('dh_sigma_residual', sigma_residual)
         chan.addColumn('dh_xy_detection_residual', np.sqrt((chan['x'] - chan['startParams_x0'])**2 + (chan['y'] - chan['startParams_y0'])**2))
 
+        if wobble_correction:
+            x_wobble_spline = LSQUnivariateSpline(z_valid, np.array(cal['x_wobble'])[z_valid_mask], knots, ext='const')
+            y_wobble_spline = LSQUnivariateSpline(z_valid, np.array(cal['y_wobble'])[z_valid_mask], knots, ext='const')
+            chan.addColumn('dh_x_wobble', x_wobble_spline(z_out))
+            chan.addColumn('dh_y_wobble', y_wobble_spline(z_out))
+        else:
+            # null
+            chan.addVariable('dh_x_wobble', 0.)
+            chan.addVariable('dh_y_wobble', 0.)
+
         if c_ind < 1:
             dh_loc = chan
         else:
@@ -209,6 +226,8 @@ def lookup_dh_z(fres, calibration, rough_knot_spacing=101., plot=False):
             sig_cals.append(sig_cal)
 
     dh_loc.setMapping('z', 'dh_z + z')
+    dh_loc.setMapping('x', 'x - dh_x_wobble')
+    dh_loc.setMapping('y', 'y - dh_y_wobble')
     
     if not plot:
         return dh_loc
