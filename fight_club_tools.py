@@ -35,3 +35,53 @@ def load_tif_and_save_as_h5(tif_fn, h5_fn):
     
     im = ImageStack(filename=tif_fn, mdh=mdh, haveGUI=False)
     im.save(h5_fn)
+
+def jaccard_and_rmse(results, ground_truth, radius_nm=250):
+    """
+    Calculate the Jaccard index and both lateral and axial RMSE between results 
+    and ground truth.
+
+    Parameters
+    ----------
+    results : table-like with 'x', 'y', 'z' columns
+        The localization results to evaluate.
+    ground_truth : table-like
+        The ground truth localizations to compare against, with 'x', 'y', 'z' columns.
+    radius_nm : float, optional
+        lateral linking radius to match results localizations to ground truth, in nm. Default is 250 nm.
+    """
+    import numpy as np
+    from scipy.spatial import cKDTree
+
+    gt_coords = np.vstack((ground_truth['x'], ground_truth['y'], ground_truth['z'])).T
+    res_coords = np.vstack((results['x'], results['y'], results['z'])).T
+
+    gt_tree = cKDTree(gt_coords)
+    # get nearest ground truth point for each result
+    dists, nn_indices = gt_tree.query(res_coords)
+
+    matched = dists < radius_nm
+    # Γ(S ∩ T)
+    n_true_positives = np.sum(matched)
+    
+    # Γ(S\S ∩ T) --> result localizations that aren't matched
+    n_false_positives = np.sum(np.logical_not(matched))# same as: len(results) - n_true_positives
+    
+    # Γ(T\S ∩ T) --> ground truth localizations that aren't matched
+    # NOTE: can't just do len(ground_truth) - n_true_positives because stats are calculated on per
+    # localization basis, not necessarily linked molecules.
+    unmatched_gt_indices = np.setdiff1d(np.arange(len(ground_truth)), nn_indices[matched])
+    n_false_negatives = len(unmatched_gt_indices)
+    # n_false_negatives = np.sum(np.bincount(nn_indices[matched], minlength=len(ground_truth)) == 0)
+    jaccard_index = 100 * n_true_positives / (n_true_positives + n_false_positives + n_false_negatives)
+
+    recall = n_true_positives / (n_true_positives + n_false_negatives)
+    precision = n_true_positives / (n_true_positives + n_false_positives)
+
+    # for RMSE calculations, only consider true positives
+    tp_results = res_coords[matched]
+    tp_ground_truth = gt_coords[nn_indices[matched]]
+    lateral_rmse = np.sqrt( 1 / n_true_positives * np.sum( (tp_results[:, :2] - tp_ground_truth[:, :2])**2 ) )
+    axial_rmse = np.sqrt( 1 / n_true_positives * np.sum( (tp_results[:, 2] - tp_ground_truth[:, 2])**2 ) )
+
+    return jaccard_index, recall, precision, lateral_rmse, axial_rmse, matched, nn_indices
