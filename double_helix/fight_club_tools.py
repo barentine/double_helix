@@ -48,7 +48,7 @@ def jaccard_and_rmse(results, ground_truth, radius_nm=250):
     ground_truth : table-like
         The ground truth localizations to compare against, with 'x', 'y', 'z' columns.
     radius_nm : float, optional
-        lateral linking radius to match results localizations to ground truth, in nm. Default is 250 nm.
+        linking radius to match results localizations to ground truth, in nm. Default is 250 nm.
     """
     import numpy as np
     from scipy.spatial import cKDTree

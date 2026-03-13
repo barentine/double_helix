@@ -8,6 +8,7 @@ dsviewer:
 # a list of fully qualified import paths for recipe modules
 recipes:
     - double_helix.recipes.DH_mappings
+    - double_helix.recipes.set_comparison
 
 # a list of fully qualified import paths for fitfactories
 fit_factories:
