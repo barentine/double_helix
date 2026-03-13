@@ -538,3 +538,66 @@ def test_wobble_correction():
 
     finally:
         os.unlink(temp_path)
+
+
+def test_startParams_fitResults_theta_bias():
+    """
+    Check that there is no systematic theta bias between startParams_theta
+    (initial estimate from Detector.extract_candidates via the steerable filter) and
+    fitResults_theta (final Gaussian-fit value) in FindAndFit.
+
+    A non-zero mean bias would indicate that the detector and fitter use different
+    theta conventions or that the steerable filter introduces a systematic offset.
+
+    Because A0 == A1 the PSF is pi-periodic in theta, so differences are wrapped to
+    [-pi/2, pi/2] before computing the mean bias.
+    """
+    roi_size = md['Analysis.ROISize']
+    n_frames = len(trimmed_theta)
+
+    # Build a z-stack: one DH per frame with known theta, centered, no lateral offset
+    test_stack_arr = np.empty(
+        (2 * roi_size + 1, 2 * roi_size + 1, n_frames),
+        float
+    )
+    for zind in range(n_frames):
+        test_stack_arr[:, :, zind], _, _, _ = DoubleGaussFit.DumbellFitFactory.evalModel(
+            [A0, A0, 0, 0, trimmed_theta[zind], md['Analysis.LobeSepGuess'],
+             md['Analysis.SigmaGuess'], 20],
+            md,
+            x=md['voxelsize.x'] * roi_size,
+            y=md['voxelsize.y'] * roi_size,
+            roiHalfSize=roi_size
+        )
+
+    test_md = MetaDataHandler.DictMDHandler(md)
+    test_md.tIndex = 0
+
+    noise_sigma = np.ones((2 * roi_size + 1, 2 * roi_size + 1, 1))
+
+    start_theta = []
+    fit_theta = []
+
+    for zind in range(n_frames):
+        frame_data = test_stack_arr[:, :, zind:zind + 1]
+        factory = DoubleGaussFit.DumbellFitFactory(frame_data, test_md, noiseSigma=noise_sigma)
+        results = factory.FindAndFit(threshold=1.0, cameraMaps=None)
+
+        assert len(results) == 1, (
+            f"Expected exactly 1 detection at z-index {zind}, found {len(results)}"
+        )
+
+        start_theta.append(float(results['startParams']['theta'][0]))
+        fit_theta.append(float(results['fitResults']['theta'][0]))
+
+    start_theta = np.array(start_theta)
+    fit_theta = np.array(fit_theta)
+
+    # Wrap the per-frame difference to [-pi/2, pi/2] to handle the pi-periodicity of the PSF
+    delta = (fit_theta - start_theta + np.pi / 2) % np.pi - np.pi / 2
+    mean_bias = np.mean(delta)
+
+    assert abs(mean_bias) < 0.01, (
+        f"Systematic theta bias between startParams and fitResults: "
+        f"mean bias = {mean_bias:.4f} rad"
+    )
