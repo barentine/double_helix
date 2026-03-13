@@ -1,4 +1,6 @@
 [![DOI](https://zenodo.org/badge/614654543.svg)](https://doi.org/10.5281/zenodo.16877693)
+[![PyPI](https://img.shields.io/pypi/v/pyme-double-helix.svg?)](https://pypi.org/project/pyme-double-helix)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pyme-double-helix)
 [![Tests](https://github.com/barentine/double_helix/actions/workflows/scheduled_test.yml/badge.svg?branch=main)](https://github.com/barentine/double_helix/actions/workflows/scheduled_test.yml)
 
 This plugin enables double-helix point-spread function detection and localization fitting within the [Python Microscopy Environment (PYME)](https://python-microscopy.org/). 
