@@ -66,6 +66,89 @@ def test_align_xy_zero_offset():
 
 
 # ---------------------------------------------------------------------------
+# AlignZ tests
+# ---------------------------------------------------------------------------
+
+def test_align_z_corrects_offset():
+    """AlignZ shifts z by the median matched offset relative to the reference."""
+    from double_helix.recipes.set_comparison import AlignZ
+
+    z_offset = 75.0
+
+    input_locs = make_source(
+        x=[100.0, 200.0, 300.0],
+        y=[40.0, 50.0, 60.0],
+        z=[500.0, 600.0, 700.0],
+    )
+    reference_locs = make_source(
+        x=[100.0, 200.0, 300.0],
+        y=[40.0, 50.0, 60.0],
+        z=[500.0 - z_offset, 600.0 - z_offset, 700.0 - z_offset],
+    )
+
+    module = AlignZ()
+    result = module.apply(
+        input_name=input_locs,
+        input_reference_localizations=reference_locs,
+    )
+
+    aligned = result['aligned_localizations']
+    expected_z = np.array([500.0, 600.0, 700.0]) - z_offset
+    np.testing.assert_allclose(aligned['z'], expected_z)
+    # x and y should be unchanged
+    np.testing.assert_allclose(aligned['x'], input_locs['x'])
+    np.testing.assert_allclose(aligned['y'], input_locs['y'])
+
+
+def test_align_z_zero_offset():
+    """AlignZ leaves z unchanged when input and reference already match."""
+    from double_helix.recipes.set_comparison import AlignZ
+
+    coords = make_source(
+        x=[10.0, 20.0, 30.0],
+        y=[1.0, 2.0, 3.0],
+        z=[100.0, 200.0, 300.0],
+    )
+
+    module = AlignZ()
+    result = module.apply(
+        input_name=coords,
+        input_reference_localizations=coords,
+    )
+
+    aligned = result['aligned_localizations']
+    np.testing.assert_allclose(aligned['z'], coords['z'])
+
+
+def test_align_z_ignores_unmatched():
+    """AlignZ only uses pairs within the XY linking radius to estimate the offset."""
+    from double_helix.recipes.set_comparison import AlignZ
+
+    # Two well-matched pairs (z offset = 50 nm) plus one outlier pair far away in XY
+    # The outlier has a large z offset (500 nm) that should be excluded from the median.
+    input_locs = make_source(
+        x=[0.0,   100.0,   1e6],
+        y=[0.0,   100.0,   1e6],
+        z=[150.0, 250.0, 9999.0],
+    )
+    reference_locs = make_source(
+        x=[0.0,   100.0,   1e6 + 1e5],   # third pair outside linking radius
+        y=[0.0,   100.0,   1e6 + 1e5],
+        z=[100.0, 200.0,   0.0],
+    )
+
+    module = AlignZ(xy_link_radius_nm=250.0)
+    result = module.apply(
+        input_name=input_locs,
+        input_reference_localizations=reference_locs,
+    )
+
+    aligned = result['aligned_localizations']
+    # Matched pairs both have z offset = 50 nm, so that offset should be removed
+    np.testing.assert_allclose(aligned['z'][:2], [100.0, 200.0], atol=1e-9)
+
+
+# ---------------------------------------------------------------------------
 # JaccardAndRMSE tests
 # ---------------------------------------------------------------------------
 

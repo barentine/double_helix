@@ -58,6 +58,46 @@ class AlignXY(ModuleBase):
         }
 
 
+@register_module('AlignZ')
+class AlignZ(ModuleBase):
+    """
+    Shift a set of localizations by the offset in z to approximately align to another,
+    e.g. a ground truth dataset. Localizations are matched by nearest-neighbour in XY,
+    then the median z offset of matched pairs is subtracted.
+    """
+    input_name = Input('localizations')
+    input_reference_localizations = Input('reference_localizations')
+    xy_link_radius_nm = Float(250, desc='linking radius in XY to match localizations to reference localizations, in nm')
+    output_name = Output('aligned_localizations')
+
+    def run(self, input_name, input_reference_localizations):
+        from scipy.spatial import cKDTree
+
+        # Match localizations to reference by nearest-neighbour in XY within the link radius
+        gt_coords = np.vstack((input_reference_localizations['x'], input_reference_localizations['y'])).T
+        res_coords = np.vstack((input_name['x'], input_name['y'])).T
+        gt_tree = cKDTree(gt_coords)
+        nn_distances, nn_indices = gt_tree.query(res_coords)
+        matched = nn_distances <= self.xy_link_radius_nm
+        z_offset = np.median(input_name['z'][matched] - input_reference_localizations['z'][nn_indices[matched]])
+
+        logging.info(f"Calculated z offset: {z_offset:.3f} nm")
+
+        aligned_loc = tabular.MappingFilter(input_name,
+            z_offset=z_offset,
+            z='z - z_offset'
+        )
+
+        try:
+            aligned_loc.mdh = MetaDataHandler.NestedClassMDHandler(input_name.mdh)
+        except AttributeError:
+            pass
+
+        return {
+            'output_name': aligned_loc
+        }
+
+
 @register_module('JaccardAndRMSE')
 class JaccardAndRMSE(ModuleBase):
     """
