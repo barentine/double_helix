@@ -594,6 +594,7 @@ def test_startParams_fitResults_theta_bias():
     fit_theta = np.array(fit_theta)
 
     # Wrap the per-frame difference to [-pi/2, pi/2] to handle the pi-periodicity of the PSF
+    # delta = np.unwrap(fit_theta, np.pi/2, period=np.pi) - np.unwrap(start_theta, np.pi/2, period=np.pi)
     delta = (fit_theta - start_theta + np.pi / 2) % np.pi - np.pi / 2
     mean_bias = np.mean(delta)
 
