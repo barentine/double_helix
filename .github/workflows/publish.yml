@@ -1,6 +1,8 @@
 name: Publish to PyPI
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -18,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ inputs.tag }}
+          ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
           fetch-depth: 0  # Required: setuptools-scm reads the version from git tags
 
       - uses: actions/setup-python@v5
@@ -47,7 +49,7 @@ jobs:
     # Dedicated environment with protection rules
     environment:
       name: pypi
-      url: https://pypi.org/project/pyme-double-helix/${{ inputs.tag }}
+      url: https://pypi.org/project/pyme-double-helix/${{ inputs.tag || github.event.release.tag_name }}
 
     steps:
       - name: Retrieve release distributions
