@@ -16,6 +16,7 @@ Read more: [_Efficient Double Helix Detection with Steerable Filters_. Barentine
 
 ```bash
 pip install pyme-double-helix
+double-helix-install-plugin
 ```
 
 
