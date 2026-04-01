@@ -558,7 +558,6 @@ class DumbellFitFactory(FFBase.FitFactory):
         else:
             bgd = self.data.astype('f').squeeze()
         # print(bgd.shape)
-        print(self.noiseSigma.shape)
 
         # negative values in bg subtraction lead to detection artefacts so make any negative pixel have value of 0
         bgd[bgd<0] = 0
