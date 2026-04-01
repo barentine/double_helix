@@ -16,12 +16,17 @@ Read more: [_Efficient Double Helix Detection with Steerable Filters_. Barentine
 
 ```bash
 pip install pyme-double-helix
+```
+
+followed by
+
+```bash
 double-helix-install-plugin
 ```
 
 
 ## Installation / Set up
-1. [Install PYME](https://python-microscopy.org/doc/Installation/Installation.html) using your preferred method. The simplest approach is to use an [executable installer](https://python-microscopy.org/downloads/), though a development installation provide more flexibility for fast upgrades or developing things yourself. As of 2025/01, C. Soeller's [test environment setup tools](https://github.com/csoeller/PYME-test-env) makes a great starting point for development installations.
+1. [Install PYME](https://python-microscopy.org/doc/Installation/Installation.html) using your preferred method.
 2. Using git, clone this repository to your machine.
 3. In a terminal/shell with your conda environment activated, run `pip install .` from the top `double_helix` directory (use `pip install -e .` if you want an editable/development install). If you used an executable installer for PYME, look for an "Anaconda prompt (python-microscopy)" shell in your start menu.
 
