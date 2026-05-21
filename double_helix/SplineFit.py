@@ -251,7 +251,7 @@ import PYME.localization.MetaDataEdit as mde
 
 PARAMETERS = [
     mde.IntParam('Analysis.ROISize', u'ROI half size', 10),
-    mde.FilenameParam('PSFFile', 'PSF:', prompt='Please select PSF to use ...', wildcard='PSF Files|*.psf|TIFF files|*.tif|H5 files|*.h5'),
+    mde.FilenameParam('PSFFile', 'PSF:', prompt='Please select PSF to use ...', wildcard='PSF Files|*.psf;*.tif;*.h5'),
     mde.FloatParam('Analysis.DetectionFilterSigma', 'Detection Filter Sigma (in px):', 8.0,
                  'scales filters spatially'),
     mde.FloatParam('Analysis.LobeSepGuess', 'Double Helix Lobe Separation Guess [nm]:', 900,
