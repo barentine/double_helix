@@ -50,6 +50,7 @@ class ZEstimator(object):
         n_z = len(z_vals)
         z = np.empty(n_z)
         angle = np.empty(n_z)
+        peak = np.empty(n_z)  # PSF peak at unit amplitude for each z slice
         # need to instantiate a detector to pull the orientation estimate. Assume the brightest strength is at the center and extract
         # that angle
         calibration_detector = Detector(metadata.getEntry('Analysis.ROISize'),
@@ -65,16 +66,26 @@ class ZEstimator(object):
             strength_image, angle_image = calibration_detector.filter_frame(slice_data.T)  # keep the transpose to match with FindAndFit
             row, col = np.where(strength_image == strength_image.max())
             angle[z_ind] = angle_image[row[0], col[0]]
+            peak[z_ind] = slice_data.max()  # PSF peak at A=1; interpolator is normalized by sum of in-focus plane
         
         # spline z as a function of angle 
         spline = UnivariateSpline(angle, z)
         self.splines['z'] = spline
+        # spline PSF peak (at A=1) as a function of z, for amplitude initial-guess scaling
+        self.splines['peak'] = UnivariateSpline(z_vals, peak)
     
     def estimate_z_from_orientation(self, orientation):
         if not 'z' in self.splines.keys():
             raise ValueError('Z estimator not calibrated')
         
         return self.splines['z'](orientation)
+    
+    def estimate_amplitude(self, data_range, z):
+        """Scale data_range by the calibrated PSF peak at the given z (nm)."""
+        if 'peak' not in self.splines:
+            raise ValueError('Z estimator not calibrated')
+        psf_peak = float(self.splines['peak'](z))
+        return data_range / psf_peak if psf_peak > 1e-6 else data_range
 
 
 class PSFFitFactory(FFBase.FFBase):
@@ -160,7 +171,6 @@ class PSFFitFactory(FFBase.FFBase):
         # _dh_detector.normFactor * (threshold * self.noiseSigma.squeeze())**2 allows for thresholding on
         #   values similar to SNR
         row, col, orientation = _dh_detector.extract_candidates(strength_image, angle_image, _dh_detector.normFactor * (threshold * self.noiseSigma.T.squeeze())**2)
-
         # lobe_sep_pix = self.metadata.getEntry('Analysis.LobeSepGuess') / self.metadata.voxelsize_nm.x
         # x0, y0, x1, y1 = lobe_estimate_from_center_pixel(col, row, orientation, lobe_sep_pix)
         # convert positions from pixels to nm
@@ -187,15 +197,19 @@ class PSFFitFactory(FFBase.FFBase):
             X, Y, data, background, sigma, xslice, yslice, zslice = self.getROIAtPoint(x_pix, y_pix, None, roi_half_size)
             X, Y, Z, safeRegion = self.interpolator.getCoords(self.metadata, xslice, yslice, zslice)
             dataMean = data - background
-            
-            amp = (data - data.min()).max() #amplitude
 
-            # vs = self.metadata.voxelsize_nm
-            # x0 =  vs.x*x
-            # y0 =  vs.y*y
-            
             bgm = np.mean(background)
-            guess = (amp, x_nm[ind], y_nm[ind], z_nm[ind], dataMean.min())
+            # x0/y0 guess must be in getCoords coordinates (pixel-index nm, no roi_offset),
+            # not absolute image nm. Use the center of the X/Y grid.
+            x0_guess = X[len(X)//2]
+            y0_guess = Y[len(Y)//2]
+            # Negate z: f_Interp3d samples PSF at Z-z0; ZEstimator returns raw IntZVals.
+            z0_guess = -float(z_nm[ind])
+
+            data_range = float((dataMean - dataMean.min()).max())
+            amp = self.startPosEstimator.estimate_amplitude(data_range, float(z_nm[ind]))
+
+            guess = (amp, x0_guess, y0_guess, z0_guess, float(dataMean.min()))
             
             #do the fit
             # (res, cov_x, infodict, mesg, resCode) = self.solver(self.fitfcn, guess, data, sigma, X, Y, background)
@@ -213,29 +227,13 @@ class PSFFitFactory(FFBase.FFBase):
             nchi2 = (infodict['fvec']**2).sum()/(dataMean.size - res.size)
             
             if False:
-                #display for debugging purposes
+                from PYME.localization.FitFactories.InterpFitR import f_Interp3d
                 import matplotlib.pyplot as plt
-                plt.figure(figsize=(20, 5))
-                plt.subplot(151)
-                plt.title('Background')
-                plt.imshow(background)
-                plt.colorbar()
-                plt.subplot(152)
-                plt.title('Background Sub')
-                plt.imshow(dataMean)
-                plt.colorbar()
-                plt.subplot(153)
-                plt.title('Init. Guess')
-                plt.imshow(f_dh(guess, X, Y))
-                plt.colorbar()
-                plt.subplot(154)
-                plt.title('Fitted Results')
-                plt.imshow(f_dh(res, X, Y))
-                plt.colorbar()
-                plt.subplot(155)
-                plt.title('Residuals')
-                plt.imshow(dataMean-f_dh(res, X, Y))
-                plt.colorbar()
+                model_at_guess = f_Interp3d(guess, self.interpolator, X, Y, Z, safeRegion)
+                plt.figure(figsize=(10, 4))
+                plt.subplot(121); plt.title(f'dataMean (candidate {ind})'); plt.imshow(dataMean.squeeze().T); plt.colorbar()
+                plt.subplot(122); plt.title(f'PSF at guess z0={guess[3]:.1f}nm'); plt.imshow(model_at_guess.squeeze().T); plt.colorbar()
+                plt.show()
 
             #package results
             results[ind] = pack_results(FitResultsDType, self.metadata.tIndex, res, fit_errors, startParams=guess, slicesUsed=(xslice, yslice, zslice), 
