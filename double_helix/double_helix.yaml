@@ -15,3 +15,4 @@ fit_factories:
     # - double_helix.FitFactories.DoubleHelixFit_Theta
     # - double_helix.FitFactories.DoubleHelixFit_SepGuess
     - double_helix.DoubleGaussFit
+    - double_helix.SplineFit

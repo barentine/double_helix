@@ -9,6 +9,7 @@ This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/gro
 ## Key Features
 - highly efficient detection of double-helix point-spread functions using just 7 (separable) convolutions
 - Double-gaussian localization fitting parameterized on lobe separation and orientation, which enables direct estimates of their uncertainties
+- Cubic spline localization fitting with initial Z guessed from detected orientation
 
 Read more: [_Efficient Double Helix Detection with Steerable Filters_. Barentine, A.E.S., Balaji, A., Moerner, W.E. (2025). bioRxiv 2025.08.14.670427](https://doi.org/10.1101/2025.08.14.670427)
 
@@ -40,13 +41,24 @@ double-helix-install-plugin
 It is imperative to have correct metadata for good localization. If your data was not acquired using PYME, please see PYME's [analyzing foreign data documentation](https://python-microscopy.org/doc/AnalysingForeignData.html).
 
 ### PSF calibration
-Calibrating your point-spread function is a great way to start. While this calibration is not necessary for fitting, it is used to eventually convert the orientation of the double-helix to a z position for a localized molecule.
-Additionally, calibrating your PSF will help determine optimal detection settings.
+Calibrating your point-spread function is a great way to start. While this calibration is not necessary for model-based fitting, it is used to eventually convert the orientation of the double-helix to a z position for a localized molecule.
+Additionally, calibrating your PSF will help determine optimal detection settings, and is necessary for spline-based fitting.
+
+#### Model based (Double Gaussian) fitting
 
 1. Open your bead stack in PYMEImage. If you already have a cropped Z-stack of a single bead, your "extracted PSF", proceed to the next step. If you have multiple beads in the same field of view, you may wish to enable the PYME `psfExtraction` module. The extraction process is described in the [PYME documentation](https://python-microscopy.org/doc/PSFExtraction.html).
 2. Once you have your extracted PSF open in PYMEImage, load the double-helix calibration module by clicking on `DH_Calibration` in the `Modules` menu near the top.
 3. In the `Processing` menu, click `Calibrate DH PSF`.
 4. Save the resulting calibration as a `.dh_json` file. The calibration plots will be automatically saved in the same directory as a png.
+
+#### Cubic spline fitting
+
+1. Open your bead stack in PYMEImage. 
+2. Load the double-helix calibration module by clicking on `DH_Calibration` in the `Modules` menu near the top.
+3. Click the center of a bead image and click `Tag Bead` in the lower left `DH PSF Extraction` panel. If you adjust the ROI half size, press `Clear` and re-tag the bead. Similarly if you prefer to align the beads
+on a slice other than the center of the Z-stack, adjust `Center slice` and re-tag.
+4. After selecting the beads you would like to average, click `Extract PSF`.
+5. If the extracted PSF stack is satisfactory, save it to `.h5` or `.tif`.
 
 ### Filter Optimization
 The detection filter has a width scaling parameter, filter sigma, which you will want to have tuned to your PSF.
@@ -68,13 +80,17 @@ PYME can facilitate distributed batch analysis of many series, but we will descr
 1. Start the `PYMEClusterOfOne`.
 2. Open your image series in `PYMEImage`
 3. If your image is not an `.h5` file type, you will likely need to activate the `LMAnalysis` module
+4. In the `Type` dropdown of the `Analysis` panel on the left, select `double_helix.DoubleGaussFit` or `double_helix.SplineFit`.
 4. Select your prefered background subtraction. We recommend checking `Use percentile for background`.
 5. If you have variance, dark, or flat maps to load, do so. Otherwise, scalar values will be used as listed in the metadata.
-6. Enter your double helix deteciton settings, as informed by your PSF calibration. The expected lobe separation [nm], and expected lobe sigma [nm] are starting points for each fit, and should be set using reasonable ~middle values from your PSF calibration.
+6. Enter your double helix detection settings, as informed by your PSF calibration. The expected lobe separation [nm], and expected lobe sigma [nm] should be set using reasonable ~middle values from your PSF calibration.
+7. if using `double_helix.SplineFit`, use the `Set` button next to `PSF: ` to load your extracted PSF `.h5` or `.tif`.
 7. Enter a value for the detection filter sigma as optimized above.
 8. Click `Test This Frame` and see how well molecules are detected and fitted. Adjust the `Thresh` value, and any other settings as necessary.
 
 ### Z-lookup for fitted localizations
+
+Z lookup is built-into `double_helix.SplineFit`, but for `DoubleGaussFit` the fitted orientation must be mapped to the calibrated Z position:
 
 1. Open a set of localized points in `PYMEVis`.
 2. In the `Corrections` menu, click `Double Helix > Map and Filter on DH parameters`.
