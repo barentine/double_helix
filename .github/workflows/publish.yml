@@ -18,9 +18,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Determine release tag
+        id: release_tag
+        shell: bash
+        run: echo "tag=${{ inputs.tag || github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate tag format
+        shell: bash
+        run: |
+          if [[ ! "${{ steps.release_tag.outputs.tag }}" =~ ^[0-9]{2}\.[0-9]{2}\.[0-9]{2}$ ]]; then
+            echo "Invalid release tag '${{ steps.release_tag.outputs.tag }}'. Expected format: XX.XX.XX"
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
+          ref: refs/tags/${{ steps.release_tag.outputs.tag }}
           fetch-depth: 0  # Required: setuptools-scm reads the version from git tags
 
       - uses: actions/setup-python@v5
