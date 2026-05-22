@@ -1,4 +1,4 @@
-from PYME.recipes.base import ModuleBase, register_module
+﻿from PYME.recipes.base import ModuleBase, register_module
 from PYME.recipes.traits import Input, Output, FileOrURI, Float, Enum, Int, List, Bool
 from PYME.IO import tabular
 from PYME.IO import MetaDataHandler
@@ -96,6 +96,81 @@ class AlignZ(ModuleBase):
         return {
             'output_name': aligned_loc
         }
+
+@register_module('Align3D')
+class Align3D(ModuleBase):
+    """
+    Shift locs by the 3D offset minimizing nn distances from reference_locs to locs
+    """
+    input_name = Input('localizations')
+    input_reference_localizations = Input('reference_localizations')
+    input_minimized_nn_distance = Input('')
+    output_name = Output('aligned_3D')
+    gtol = Float(1e-12, desc='Gradient tolerance for optimization (lower = stricter convergence)')
+    ftol = Float(1e-14, desc='Cost functional tolerance (lower = stricter convergence)')
+    xtol = Float(1e-12, desc='Parameter change tolerance (lower = stricter convergence)')
+    max_nfev = Int(10000, desc='Maximum number of function evaluations')
+    verbose = Int(2, desc='Verbosity level (0=silent, 1=basic, 2=detailed)')
+
+    def run(self, input_name, input_reference_localizations, input_minimized_nn_distance):
+        from scipy.spatial import cKDTree
+        from scipy.optimize import minimize
+
+        def nn_cost(offsets, locs, reference_locs):
+            """Compute total cost (sum of nearest neighbor distances)"""
+            x, y, z = offsets
+            gt_coords = np.vstack((reference_locs['x'], reference_locs['y'], reference_locs['z'])).T
+            res_coords = np.vstack((locs['x'] - x, locs['y'] - y, locs['z'] - z)).T
+            gt_tree = cKDTree(gt_coords)
+            nn_distances, nn_indices = gt_tree.query(res_coords)
+            # Return sum of distances as the objective to minimize
+            return np.sum(nn_distances)
+        
+        # Initial guess for offsets is zero
+        x0 = np.array([0.0, 0.0, 0.0])
+        
+        # Use derivative-free optimization (Nelder-Mead is robust for non-smooth functions)
+        # Powell method is another good option: method='Powell'
+        result = minimize(
+            nn_cost,
+            x0,
+            args=(input_name, input_reference_localizations),
+            method='Nelder-Mead',
+            options={
+                'maxiter': self.max_nfev,
+                'xatol': self.xtol,
+                'fatol': self.ftol,
+                'adaptive': True,  # Use adaptive simplex size
+                'disp': (self.verbose > 0)
+            }
+        )
+        
+        x_offset, y_offset, z_offset = result.x
+        
+        logging.info(f"Align3D offsets: x={x_offset:.3f} nm, y={y_offset:.3f} nm, z={z_offset:.3f} nm")
+        logging.info(f"Optimization success: {result.success}, message: {result.message}")
+        logging.info(f"Total cost (sum of NN distances): {result.fun:.6e}")
+        logging.info(f"Function evaluations: {result.nfev}")
+        
+        # Apply offsets to input localizations
+        aligned_loc = tabular.MappingFilter(input_minimized_nn_distance,
+            x_offset=x_offset,
+            y_offset=y_offset,
+            z_offset=z_offset,
+            x='x - x_offset',
+            y='y - y_offset',
+            z='z - z_offset'
+        )
+
+        try:
+            aligned_loc.mdh = MetaDataHandler.NestedClassMDHandler(input_name.mdh)
+        except AttributeError:
+            pass
+
+        return {
+            'output_name': aligned_loc
+        }
+    
 
 
 @register_module('JaccardAndRMSE')
