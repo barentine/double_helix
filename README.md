@@ -11,7 +11,8 @@ This plugin has been developed in the [Moerner Lab](https://web.stanford.edu/gro
 - Double-gaussian localization fitting parameterized on lobe separation and orientation, which enables direct estimates of their uncertainties
 - Cubic spline localization fitting with initial Z guessed from detected orientation
 
-Read more: [_Efficient Double Helix Detection with Steerable Filters_. Barentine, A.E.S., Balaji, A., Moerner, W.E. (2025). bioRxiv 2025.08.14.670427](https://doi.org/10.1101/2025.08.14.670427)
+### Read more: 
+[_Efficient Double Helix Detection with Steerable Filters_. Barentine, A.E.S., Balaji, A., Moerner, W.E. Biomed. Opt. Express 17, 3609-3616 (2026) ](https://doi.org/10.1364/BOE.601121)
 
 ## Quick install
 
